@@ -13,7 +13,7 @@ import {
 import { translateImage, type ImageResult } from '../utils/vision.ts';
 import { ensureCacheLoaded } from '../utils/cache.ts';
 import { fetchWithTimeout } from '../utils/requester.ts';
-import { asRecord, readBatch, readJobId, readSingle } from '../utils/messages.ts';
+import { MAX_TEXT_CHARS, asRecord, readBatch, readJobId, readSingle } from '../utils/messages.ts';
 import { accumulateUsage, EMPTY_USAGE_TOTALS, type TranslationStats } from '../utils/usage.ts';
 import { randomId } from '../utils/id.ts';
 import { isSiteDisabled } from '../utils/site-policy.ts';
@@ -170,57 +170,110 @@ async function learnTermFromEdit(
 
 // ===== SSE 流式翻译端口 =====
 // 内容脚本打开长连接，逐条发送待译文本；后台边生成边回传增量，首字延迟从整块返回降到首个 token。
+// 内容脚本放弃某条请求（15s 空闲超时回退普通请求）会发 {type:'cancel-one', id}：
+// 后台据此中止生成，避免同一文本在后台继续跑完（双倍 Token 与限流压力）。
 function setupStreamingPort() {
   browser.runtime.onConnect.addListener((port) => {
     if (port.name !== 'haofan-stream') return;
     let cancelled = false;
+    // 每条在途请求的取消控制器：cancel-one / 端口断连时统一中止。
+    const inflight = new Map<string, AbortController>();
     port.onDisconnect.addListener(() => {
       cancelled = true;
+      inflight.forEach((ctrl) => ctrl.abort());
+      inflight.clear();
     });
     port.onMessage.addListener((msg: unknown) => {
       const message = asRecord(msg);
-      if (!message || message.type !== 'translate-one') return;
+      if (!message || typeof message.type !== 'string') return;
+      if (message.type === 'cancel-one') {
+        const id = String(message.id ?? '');
+        inflight.get(id)?.abort();
+        inflight.delete(id);
+        return;
+      }
+      if (message.type !== 'translate-one') return;
       const id = String(message.id ?? '');
       const text = typeof message.text === 'string' ? message.text : '';
+      // 端口与 HTTP 消息面执行同一套长度/空文本校验（MAX_TEXT_CHARS）：
+      // 超长文本走这里会绕过上限造成成本失控口子。
+      const trimmedText = text.trim();
+      if (!trimmedText) {
+        port.postMessage({ id, done: true, error: '翻译文本不能为空' });
+        return;
+      }
+      if (trimmedText.length > MAX_TEXT_CHARS) {
+        port.postMessage({
+          id,
+          done: true,
+          error: `翻译文本过长：${trimmedText.length} / ${MAX_TEXT_CHARS} 字符`,
+        });
+        return;
+      }
       const jobId = typeof message.jobId === 'string' ? message.jobId : undefined;
       const context = (message.context as TranslationContext | undefined) || undefined;
+      // 端口断连竞态下的 postMessage 会抛错：统一吞掉，避免落入外层 catch
+      // 再触发一次 postMessage 形成未处理拒绝噪音。
+      const safePost = (payload: Record<string, unknown>) => {
+        if (cancelled) return;
+        try {
+          port.postMessage(payload);
+        } catch {
+          /* 端口已断开 */
+        }
+      };
       void withTranslationJob(jobId, async (signal) => {
-        const cfg = await getCfg();
-        assertProviderReady(cfg);
-        if (!cfg.streaming) {
-          const r = await translateOneDetailed(cfg, text, signal, context);
-          await recordUsage(r.stats);
-          if (!cancelled)
-            port.postMessage({
-              id,
-              done: true,
+        const local = new AbortController();
+        inflight.set(id, local);
+        // 任务级取消信号（CANCEL_TRANSLATION）联动到本请求。
+        const onJobAbort = () => local.abort(signal?.reason);
+        if (signal) {
+          if (signal.aborted) onJobAbort();
+          else signal.addEventListener('abort', onJobAbort, { once: true });
+        }
+        const postDone = (payload: Record<string, unknown>) => {
+          if (!cancelled && !local.signal.aborted) safePost({ id, done: true, ...payload });
+        };
+        try {
+          const cfg = await getCfg();
+          assertProviderReady(cfg);
+          if (!cfg.streaming) {
+            const r = await translateOneDetailed(cfg, trimmedText, local.signal, context);
+            await recordUsage(r.stats);
+            postDone({
               translation: r.translation,
               issue: r.issue ?? null,
-              stats: { estimatedTokensSaved: r.stats.estimatedTokensSaved },
+              stats: {
+                estimatedTokensSaved: r.stats.estimatedTokensSaved,
+                localSkipped: r.stats.localSkipped > 0,
+              },
             });
-          return;
-        }
-        await translateOneStream(cfg, text, {
-          signal,
-          context,
-          onDelta: (partial) => {
-            if (!cancelled) port.postMessage({ id, delta: partial });
-          },
-          onDone: (r) => {
-            if (!cancelled) {
+            return;
+          }
+          await translateOneStream(cfg, trimmedText, {
+            signal: local.signal,
+            context,
+            onDelta: (partial) => {
+              if (!cancelled && !local.signal.aborted) safePost({ id, delta: partial });
+            },
+            onDone: (r) => {
               void recordUsage(r.stats);
-              port.postMessage({
-                id,
-                done: true,
+              postDone({
                 translation: r.translation,
                 issue: r.issue ?? null,
-                stats: { estimatedTokensSaved: r.stats.estimatedTokensSaved },
+                stats: {
+                  estimatedTokensSaved: r.stats.estimatedTokensSaved,
+                  localSkipped: r.stats.localSkipped > 0,
+                },
               });
-            }
-          },
-        });
+            },
+          });
+        } finally {
+          if (signal) signal.removeEventListener('abort', onJobAbort);
+          inflight.delete(id);
+        }
       }).catch((error) => {
-        if (!cancelled) port.postMessage({ id, done: true, error: errorMessage(error) });
+        safePost({ id, done: true, error: errorMessage(error) });
       });
     });
   });
@@ -310,7 +363,12 @@ export default defineBackground(() => {
           assertProviderReady(cfg);
           const result = await translateOneDetailed(cfg, text, signal, context);
           await recordUsage(result.stats);
-          return { translation: result.translation, stats: result.stats, issue: result.issue };
+          return {
+            translation: result.translation,
+            stats: result.stats,
+            issue: result.issue,
+            localSkipped: result.stats.localSkipped > 0,
+          };
         });
       }, sendResponse);
     }
@@ -348,21 +406,22 @@ export default defineBackground(() => {
         }
         const { term, translation } = await learnTermFromEdit(cfg, source, edited);
         if (!term || !translation) return { learned: false };
+        // 与 content.ts 的 learnGlossaryTerm 相同的净化：术语表是「每行 源词=译文」
+        // 结构，源词/译文里混入换行或分隔符会破坏整库解析。
+        const safeTerm = term.replace(/\s*[\r\n]+\s*/g, ' ').replace(/[=＝]/g, '-').trim();
+        const safeTranslation = translation.replace(/\s*[\r\n]+\s*/g, ' ').trim();
+        if (!safeTerm || !safeTranslation) return { learned: false };
         const current = await configItem.getValue();
-        const line = `${term}=${translation}`;
+        const line = `${safeTerm}=${safeTranslation}`;
         // 去重：已存在的术语行原地更新，避免多次编辑导致术语表无限累积重复行。
         const lines = (current.customGlossary || '').split(/\r?\n/).filter((l) => l.trim());
         const normalized = new Map(lines.map((l) => {
           const m = l.match(/^(.+?)\s*(?:=>|->|＝|=|：|:|\t)\s*(.+)$/);
           return m ? [m[1].trim().toLowerCase(), l] : [l.toLowerCase(), l];
         }));
-        if (normalized.has(term.toLowerCase())) {
-          normalized.set(term.toLowerCase(), line);
-        } else {
-          normalized.set(term.toLowerCase(), line);
-        }
+        normalized.set(safeTerm.toLowerCase(), line);
         await configItem.setValue({ ...current, customGlossary: Array.from(normalized.values()).join('\n') });
-        return { learned: true, term, translation };
+        return { learned: true, term: safeTerm, translation: safeTranslation };
       }, sendResponse);
     }
 

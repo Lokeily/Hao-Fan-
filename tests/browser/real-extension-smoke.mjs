@@ -4,10 +4,15 @@
 //  ③ 用扩展自己的快速设置面板切到 google（免 Key）→ 点「译」→ 真实网络翻译出译文
 // 注意：需在真实桌面 Chrome 环境运行（沙箱/无头环境不支持 --load-extension）：
 //   node tests/browser/real-extension-smoke.mjs
-/* eslint-env node */
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
-const extPath = '/Users/lokei/WorkBuddy/2026-08-14-07-18-22/hao-fan/.output/chrome-mv3';
+const extPath = fileURLToPath(new URL('../../.output/chrome-mv3', import.meta.url));
+if (!existsSync(extPath)) {
+  console.error(`未找到扩展产物目录：${extPath}\n请先运行 npm run build`);
+  process.exit(1);
+}
 const results = [];
 const record = (name, ok, detail = '') => results.push({ name, ok, detail });
 

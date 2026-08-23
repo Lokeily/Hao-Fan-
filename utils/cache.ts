@@ -79,17 +79,22 @@ function schedulePersist() {
   }, 400);
 }
 
-// 同步读取（已在内存中，零往返）；过期返回 null
+// 同步读取（已在内存中，零往返）；过期返回 null。
+// 命中时刷新时间戳：让「最近使用」而非「最早写入」参与淘汰（真正的 LRU 近似）。
 export function getCachedSync(text: string, target: string, model: string): string | null {
   if (memory === null) return null;
-  const e = memory[keyOf(text, target, model)];
+  const key = keyOf(text, target, model);
+  const e = memory[key];
   if (!e) return null;
   if (Date.now() - e.t > TTL) {
-    delete memory[keyOf(text, target, model)];
+    delete memory[key];
     dirty = true;
     schedulePersist();
     return null;
   }
+  e.t = Date.now();
+  dirty = true;
+  schedulePersist();
   return e.v;
 }
 
@@ -124,4 +129,29 @@ export async function setCached(
 ): Promise<void> {
   await ensureCacheLoaded();
   setCachedSync(text, target, model, translation);
+}
+
+// ===== 缓存管理 =====
+// 当前缓存条数（未加载时返回 null，调用方可显示为「—」）。
+export function getCacheStats(): { count: number } | null {
+  if (memory === null) return null;
+  return { count: Object.keys(memory).length };
+}
+
+// 清空全部翻译缓存：内存与持久化同步清除，下次翻译重新累积。
+export async function clearTranslateCache(): Promise<void> {
+  await ensureCacheLoaded().catch(() => {});
+  memory = {};
+  dirty = false;
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  try {
+    await cacheItem.setValue({});
+  } catch {
+    // 写入失败时保留脏标记，交给防抖定时器重试
+    dirty = true;
+    schedulePersist();
+  }
 }

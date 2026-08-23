@@ -60,6 +60,16 @@ export function splitLongText(text: string, maxCharacters = 2_800): string[] {
       if (cut >= minimum) break;
     }
     if (cut < 1) cut = maxCharacters;
+    // 硬切按 UTF-16 code unit 对齐：切点落在 emoji 等代理对中间会产生孤立代理项，
+    // 模型会收到乱码。回退到完整 code point 边界。
+    while (cut > 0 && cut < rest.length) {
+      const code = rest.charCodeAt(cut - 1);
+      const next = rest.charCodeAt(cut);
+      const highSurrogate = code >= 0xd800 && code <= 0xdbff;
+      const lowSurrogate = next >= 0xdc00 && next <= 0xdfff;
+      if (!highSurrogate && !lowSurrogate) break;
+      cut--;
+    }
     parts.push(rest.slice(0, cut).trim());
     rest = rest.slice(cut).trimStart();
   }

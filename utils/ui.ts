@@ -1,4 +1,5 @@
 import { configItem } from './storage.ts';
+import { getCacheStats, clearTranslateCache } from './cache.ts';
 import { PROVIDERS } from './providers.ts';
 import { LANGUAGES } from './languages.ts';
 import { browser } from 'wxt/browser';
@@ -23,6 +24,8 @@ export interface ConfigFormApi {
   update: (next?: AppConfig) => void;
   /** 外部同步站点开关状态（可只传其一） */
   updateSiteState: (auto?: boolean, paused?: boolean) => void;
+  /** 销毁表单时停止响应后续 storage 同步，避免页内面板反复打开产生旧监听。 */
+  dispose: () => void;
 }
 
 export function buildConfigForm(
@@ -192,6 +195,18 @@ export function buildConfigForm(
               <option value="highlight">浅蓝高亮块</option>
             </select>
           </label>
+          <label class="ot-field ot-field-wide">界面主题
+            <span>悬浮按钮 / 设置面板 / 结果浮层的深浅色</span>
+            <select data-f="themeMode">
+              <option value="auto">跟随系统（自动切换）</option>
+              <option value="light">始终浅色</option>
+              <option value="dark">始终深色</option>
+            </select>
+          </label>
+        </div>
+        <div class="ot-cache-row">
+          <span class="ot-cache-info">翻译缓存：<b data-f="cacheCount">—</b> 条（30 天有效期，上限 2000 条）</span>
+          <button type="button" data-f="cacheClear" class="ot-cache-clear">清空翻译缓存</button>
         </div>
       </section>
 
@@ -236,17 +251,31 @@ export function buildConfigForm(
   const hoverTranslateChk = mount.querySelector('[data-f=hoverTranslate]') as HTMLInputElement;
   const inputTranslateChk = mount.querySelector('[data-f=inputTranslate]') as HTMLInputElement;
   const translationStyleSel = mount.querySelector('[data-f=translationStyle]') as HTMLSelectElement;
+  const themeModeSel = mount.querySelector('[data-f=themeMode]') as HTMLSelectElement;
   const fallbackInput = mount.querySelector('[data-f=fallbackProviders]') as HTMLInputElement;
   const strongProviderSel = mount.querySelector('[data-f=strongProvider]') as HTMLSelectElement;
   const strongModelInput = mount.querySelector('[data-f=strongModel]') as HTMLInputElement;
   const strongThresholdInput = mount.querySelector('[data-f=strongThreshold]') as HTMLInputElement;
   const testBtn = mount.querySelector('[data-f=test]') as HTMLButtonElement;
   const status = mount.querySelector('.ot-status') as HTMLElement;
+  const cacheCountEl = mount.querySelector('[data-f=cacheCount]') as HTMLElement;
+  const cacheClearBtn = mount.querySelector('[data-f=cacheClear]') as HTMLButtonElement;
   const advanced = mount.querySelector('.ot-advanced') as HTMLDetailsElement | null;
   const customModelValue = '__haofan_custom_model__';
   let statusTimer: ReturnType<typeof setTimeout> | null = null;
   let saveQueue: Promise<void> = Promise.resolve();
   let inputSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  // 初始配置读取失败时置位：此时 cfg 还是默认值快照，任何编辑触发的保存都会把
+  // 默认值覆盖到存储（真实配置静默丢失）。置位后 save() 直接拒绝写入。
+  let configLoadFailed = false;
+  // 字段级脏跟踪：记录用户在本表单中实际修改过的配置键。
+  // save() 以存储中的最新配置为基底、只叠加这些字段——快速面板 / 弹窗 /
+  // options 与本表单并发编辑时不再互相覆盖对方刚写入的值（根治全量快照丢字段）。
+  const dirtyFields = new Set<string>();
+  const markDirty = (...keys: string[]) => {
+    keys.forEach((k) => dirtyFields.add(k));
+  };
+  let disposed = false;
 
   function setFormLoading(loading: boolean) {
     form.classList.toggle('is-loading', loading);
@@ -347,110 +376,194 @@ export function buildConfigForm(
   }
 
   function fill() {
-    // 仅引擎变化时重建模型下拉；开关切换等外部同步不应反复重建（性能/闪烁）
-    if (providerSel.value !== cfg.provider) {
+    // 仅引擎变化时重建模型下拉；开关切换等外部同步不应反复重建（性能/闪烁）。
+    // 本表单中未保存的用户修改（dirty 字段）不被外部同步覆盖。
+    if (providerSel.value !== cfg.provider && !dirtyFields.has('provider')) {
       providerSel.value = cfg.provider;
       fillModels(cfg.provider);
     }
     const hasModels = !modelSel.hidden;
     const inSelect = hasModels && Array.from(modelSel.options).some((o) => o.value === cfg.model);
-    if (inSelect) {
-      modelSel.value = cfg.model;
-      modelText.hidden = true;
-    } else {
-      if (hasModels) {
-        modelSel.value = customModelValue;
-        modelText.hidden = false;
+    if (!dirtyFields.has('model')) {
+      if (inSelect) {
+        modelSel.value = cfg.model;
+        modelText.hidden = true;
+      } else {
+        if (hasModels) {
+          modelSel.value = customModelValue;
+          modelText.hidden = false;
+        }
+        modelText.value = cfg.model;
       }
-      modelText.value = cfg.model;
     }
     // 值相同则不写回，避免外部同步打断正在输入的控件
     const setIfDiff = (
+      key: string,
       el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
       value: string | boolean,
     ) => {
+      // 本表单中未保存的用户修改优先于外部同步；保存成功后自动恢复跟随。
+      if (dirtyFields.has(key)) return;
+      // 正在输入的文本不被覆盖；复选框和下拉框必须立即同步，
+      // 否则用户点击后焦点仍在控件上，另一面板的修改会被错误跳过。
+      const editingText =
+        el.matches(':focus') &&
+        (el instanceof HTMLTextAreaElement ||
+          (el instanceof HTMLInputElement && ['text', 'password', 'url', 'number'].includes(el.type)));
+      if (editingText) return;
       if (el instanceof HTMLInputElement && el.type === 'checkbox') {
         if (el.checked !== Boolean(value)) el.checked = Boolean(value);
       } else if (String(el.value) !== String(value)) {
         el.value = String(value);
       }
     };
-    setIfDiff(baseInput, cfg.baseUrl);
-    setIfDiff(keyInput, getProviderApiKey(cfg));
-    setIfDiff(sourceSel, cfg.sourceLang);
-    setIfDiff(targetSel, cfg.targetLang);
-    setIfDiff(toneSel, cfg.tone || '自然流畅');
-    setIfDiff(translateModeSel, cfg.translateMode || 'auto');
-    setIfDiff(promptInput, cfg.systemPrompt);
-    setIfDiff(cacheChk, cfg.cacheEnabled);
-    setIfDiff(glossaryChk, cfg.glossaryEnabled !== false);
-    setIfDiff(glossaryInput, cfg.customGlossary || '');
-    setIfDiff(customVisionChk, cfg.customVision === true);
-    setIfDiff(streamingChk, cfg.streaming !== false);
-    setIfDiff(contextChk, cfg.contextAware !== false);
-    setIfDiff(qualityChk, cfg.qualityCheck !== false);
-    setIfDiff(autoLearnChk, cfg.autoLearnTerms !== false);
-    setIfDiff(sentenceChk, cfg.sentenceCache !== false);
-    setIfDiff(glossaryTermLimitSel, String(cfg.glossaryTermLimit ?? 12));
-    setIfDiff(hoverTranslateChk, cfg.hoverTranslate !== false);
-    setIfDiff(inputTranslateChk, cfg.inputTranslate !== false);
-    setIfDiff(translationStyleSel, cfg.translationStyle || 'plain');
+    setIfDiff('baseUrl', baseInput, cfg.baseUrl);
+    setIfDiff('apiKey', keyInput, getProviderApiKey(cfg));
+    setIfDiff('sourceLang', sourceSel, cfg.sourceLang);
+    setIfDiff('targetLang', targetSel, cfg.targetLang);
+    setIfDiff('tone', toneSel, cfg.tone || '自然流畅');
+    setIfDiff('translateMode', translateModeSel, cfg.translateMode || 'auto');
+    setIfDiff('systemPrompt', promptInput, cfg.systemPrompt);
+    setIfDiff('cacheEnabled', cacheChk, cfg.cacheEnabled);
+    setIfDiff('glossaryEnabled', glossaryChk, cfg.glossaryEnabled !== false);
+    setIfDiff('customGlossary', glossaryInput, cfg.customGlossary || '');
+    setIfDiff('customVision', customVisionChk, cfg.customVision === true);
+    setIfDiff('streaming', streamingChk, cfg.streaming !== false);
+    setIfDiff('contextAware', contextChk, cfg.contextAware !== false);
+    setIfDiff('qualityCheck', qualityChk, cfg.qualityCheck !== false);
+    setIfDiff('autoLearnTerms', autoLearnChk, cfg.autoLearnTerms !== false);
+    setIfDiff('sentenceCache', sentenceChk, cfg.sentenceCache !== false);
+    setIfDiff('glossaryTermLimit', glossaryTermLimitSel, String(cfg.glossaryTermLimit ?? 12));
+    setIfDiff('hoverTranslate', hoverTranslateChk, cfg.hoverTranslate !== false);
+    setIfDiff('inputTranslate', inputTranslateChk, cfg.inputTranslate !== false);
+    setIfDiff('translationStyle', translationStyleSel, cfg.translationStyle || 'plain');
+    setIfDiff('themeMode', themeModeSel, cfg.themeMode || 'auto');
     // 高级字段也必须回填：此前只写不读，打开设置页会显示空值，
     // 用户改其它项保存时会把多引擎配置静默清空（数据丢失 bug）。
-    setIfDiff(fallbackInput, (cfg.fallbackProviders || []).join(', '));
+    setIfDiff('fallbackProviders', fallbackInput, (cfg.fallbackProviders || []).join(', '));
     const strongValue = cfg.strongProvider || '';
     setIfDiff(
+      'strongProvider',
       strongProviderSel,
       strongValue && Array.from(strongProviderSel.options).some((o) => o.value === strongValue)
         ? strongValue
         : '',
     );
-    setIfDiff(strongModelInput, cfg.strongModel || '');
-    setIfDiff(strongThresholdInput, String(cfg.strongThreshold ?? 1200));
+    setIfDiff('strongModel', strongModelInput, cfg.strongModel || '');
+    setIfDiff('strongThreshold', strongThresholdInput, String(cfg.strongThreshold ?? 1200));
     syncCheckState();
     refreshSelectTitles();
   }
 
-  function save(): Promise<boolean> {
-    cfg.provider = providerSel.value;
+  function readModelField(): string {
     // 取当前可见的模型字段（P1-2）
-    cfg.model = modelField.hidden
+    return modelField.hidden
       ? ''
       : !modelSel.hidden && modelSel.value !== customModelValue
         ? modelSel.value
         : modelText.value.trim();
-    cfg.baseUrl = baseInput.value.trim();
-    cfg = withProviderApiKey(cfg, keyInput.value);
-    cfg.sourceLang = sourceSel.value;
-    cfg.targetLang = targetSel.value;
-    cfg.tone = toneSel.value;
-    cfg.translateMode = translateModeSel.value === 'manual' ? 'manual' : 'auto';
-    cfg.systemPrompt = promptInput.value.trim();
-    cfg.cacheEnabled = cacheChk.checked;
-    cfg.glossaryEnabled = glossaryChk.checked;
-    cfg.customGlossary = glossaryInput.value;
-    cfg.customVision = customVisionChk.checked;
-    cfg.streaming = streamingChk.checked;
-    cfg.contextAware = contextChk.checked;
-    cfg.qualityCheck = qualityChk.checked;
-    cfg.autoLearnTerms = autoLearnChk.checked;
-    cfg.sentenceCache = sentenceChk.checked;
-    cfg.glossaryTermLimit = Number(glossaryTermLimitSel.value) || 12;
-    cfg.hoverTranslate = hoverTranslateChk.checked;
-    cfg.inputTranslate = inputTranslateChk.checked;
-    cfg.translationStyle = translationStyleSel.value;
-    cfg.fallbackProviders = fallbackInput.value
-      .split(/[,，\s]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    cfg.strongProvider = strongProviderSel.value;
-    cfg.strongModel = strongModelInput.value.trim();
-    cfg.strongThreshold = Number(strongThresholdInput.value) || 1200;
-    const snapshot: AppConfig = { ...cfg, apiKeys: { ...cfg.apiKeys } };
-    const write = saveQueue.catch(() => {}).then(() => configItem.setValue(snapshot));
+  }
+
+  async function save(): Promise<boolean> {
+    if (configLoadFailed) {
+      setStatus('读取设置失败：为防止默认值覆盖你的配置，已暂停保存。请刷新页面重试。', true);
+      return false;
+    }
+    // 无本地修改则不写盘：测试连接 / pagehide 等场景直接放行，也避免空转写。
+    if (dirtyFields.size === 0) return true;
+
+    // 同步捕获本轮要写的字段；捕获之后的新修改留给下一轮保存。
+    const touched = new Set(dirtyFields);
+    touched.forEach((k) => dirtyFields.delete(k));
+
+    // 整个「读存储最新值 → 只叠加脏字段 → 写回」都在串行队列内完成：
+    // 若只串行化写入、读取在队列外，飞行中的读取会拿到旧基底，
+    // 写回时把并发入口刚写入的 Key 等字段覆盖掉（丢字段）。
+    const write = saveQueue.catch(() => {}).then(async () => {
+      let base = cfg;
+      try {
+        base = normalizeConfig(await configItem.getValue());
+      } catch {
+        /* 读取失败退化为当前内存快照 */
+      }
+      const next: AppConfig = { ...base, apiKeys: { ...base.apiKeys } };
+
+      if (touched.has('provider')) next.provider = providerSel.value;
+      // apiKey 必须在 provider 之后处理：切引擎 + 输新 Key 一并保存时，
+      // Key 归属到切换后的服务商。
+      if (touched.has('apiKey')) {
+        const trimmedKey = keyInput.value.trim();
+        if (trimmedKey) next.apiKeys[next.provider] = trimmedKey;
+        else delete next.apiKeys[next.provider];
+      }
+      if (touched.has('model')) next.model = readModelField();
+      if (touched.has('baseUrl')) next.baseUrl = baseInput.value.trim();
+      if (touched.has('sourceLang')) next.sourceLang = sourceSel.value;
+      if (touched.has('targetLang')) next.targetLang = targetSel.value;
+      if (touched.has('tone')) next.tone = toneSel.value;
+      if (touched.has('translateMode')) {
+        next.translateMode = translateModeSel.value === 'manual' ? 'manual' : 'auto';
+      }
+      if (touched.has('systemPrompt')) next.systemPrompt = promptInput.value.trim();
+      if (touched.has('cacheEnabled')) next.cacheEnabled = cacheChk.checked;
+      if (touched.has('glossaryEnabled')) next.glossaryEnabled = glossaryChk.checked;
+      if (touched.has('customGlossary')) next.customGlossary = glossaryInput.value;
+      if (touched.has('customVision')) next.customVision = customVisionChk.checked;
+      if (touched.has('streaming')) next.streaming = streamingChk.checked;
+      if (touched.has('contextAware')) next.contextAware = contextChk.checked;
+      if (touched.has('qualityCheck')) next.qualityCheck = qualityChk.checked;
+      if (touched.has('autoLearnTerms')) next.autoLearnTerms = autoLearnChk.checked;
+      if (touched.has('sentenceCache')) next.sentenceCache = sentenceChk.checked;
+      if (touched.has('glossaryTermLimit')) {
+        // 「关闭」选项的 value 是 "0"：Number('0') 为 falsy，旧的 `|| 12` 会把用户
+        // 明确选择的关闭静默改写成推荐值 12。必须用显式的有限性判断。
+        const termLimit = Number(glossaryTermLimitSel.value);
+        next.glossaryTermLimit = Number.isFinite(termLimit) && termLimit >= 0 ? termLimit : 12;
+      }
+      if (touched.has('hoverTranslate')) next.hoverTranslate = hoverTranslateChk.checked;
+      if (touched.has('inputTranslate')) next.inputTranslate = inputTranslateChk.checked;
+      if (touched.has('translationStyle')) next.translationStyle = translationStyleSel.value;
+      if (touched.has('themeMode')) {
+        const mode = themeModeSel.value;
+        next.themeMode = mode === 'light' || mode === 'dark' ? mode : 'auto';
+      }
+      if (touched.has('fallbackProviders')) {
+        next.fallbackProviders = fallbackInput.value
+          .split(/[,，\s]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+      if (touched.has('strongProvider')) next.strongProvider = strongProviderSel.value;
+      if (touched.has('strongModel')) next.strongModel = strongModelInput.value.trim();
+      if (touched.has('strongThreshold')) {
+        const threshold = Number(strongThresholdInput.value);
+        next.strongThreshold =
+          Number.isFinite(threshold) && threshold > 0 ? Math.max(200, Math.round(threshold)) : 1200;
+      }
+      // 兜底仅在本轮确实写了模型时生效：LLM 引擎下模型名为空会导致请求体缺 model 直接报错，
+      // 回退到该引擎的预设模型而不是保存空串。
+      const currentProvider = PROVIDERS.find((x) => x.id === next.provider);
+      if (
+        touched.has('model') &&
+        !next.model &&
+        currentProvider?.type === 'llm' &&
+        currentProvider.defaultModel
+      ) {
+        next.model = currentProvider.defaultModel;
+        if (!modelField.hidden && !modelText.hidden) modelText.value = next.model;
+      }
+
+      cfg = next;
+      await configItem.setValue({ ...next, apiKeys: { ...next.apiKeys } });
+    });
+
     saveQueue = write.then(
       () => setStatus('已保存 ✓', false, 1500),
-      () => setStatus('保存失败，请重试', true),
+      () => {
+        // 写失败：归还待保存标记，重试/下次输入仍会带上这些字段。
+        touched.forEach((k) => dirtyFields.add(k));
+        setStatus('保存失败，请重试', true);
+      },
     );
     return write.then(
       () => true,
@@ -467,13 +580,41 @@ export function buildConfigForm(
   }
 
   providerSel.addEventListener('change', () => {
+    markDirty('provider');
+    // Key 输入框已编辑但尚未落库时，先把它提交给「切换前」的服务商：
+    // 否则切引擎后保存会把旧服务商的 Key 误存到新服务商名下。
+    if (dirtyFields.has('apiKey') && cfg.provider !== providerSel.value) {
+      const oldProvider = cfg.provider;
+      const editedKey = keyInput.value.trim();
+      saveQueue = saveQueue
+        .catch(() => {})
+        .then(async () => {
+          const latest = normalizeConfig(await configItem.getValue().catch(() => cfg));
+          const merged = { ...latest, apiKeys: { ...latest.apiKeys } };
+          if (editedKey) merged.apiKeys[oldProvider] = editedKey;
+          else delete merged.apiKeys[oldProvider];
+          await configItem.setValue(merged);
+        })
+        .catch(() => {
+          // 写失败必须归还脏标记：静默吞掉会让这轮 Key 永久丢失。
+          dirtyFields.add('apiKey');
+          setStatus('保存失败：切换引擎前的 API Key 未保存，请重试', true);
+        });
+    }
+    dirtyFields.delete('apiKey');
     cfg = withProviderApiKey(cfg, keyInput.value);
     cfg.provider = providerSel.value;
     refreshSelectTitles();
     fillModels(cfg.provider);
     const p = PROVIDERS.find((x) => x.id === cfg.provider);
-    cfg.model = p?.defaultModel || '';
-    cfg.baseUrl = p?.baseUrl || '';
+    // 自定义引擎没有预设端点/模型，切换到它时保留用户已配置的值；
+    // 快速面板与完整表单必须使用相同规则，否则两边切换会互相清空配置。
+    if (cfg.provider !== 'custom') {
+      cfg.model = p?.defaultModel || '';
+      cfg.baseUrl = p?.baseUrl || '';
+      // 引擎切换会连带重置模型与端点，三者作为一组意图一起落库。
+      markDirty('model', 'baseUrl');
+    }
     fill();
     save();
   });
@@ -482,10 +623,15 @@ export function buildConfigForm(
     const custom = modelSel.value === customModelValue;
     modelText.hidden = !custom;
     if (custom) {
-      modelText.value = '';
+      // 进入自定义模式时保留当前已配置的自定义模型名：若当前模型是预设项之一
+      // 则置空让用户输入；否则（本来就是自定义模型）必须回填，置空会让下一次
+      // 任意字段的保存把 cfg.model 静默抹掉（数据丢失）。
+      const known = Array.from(modelSel.options).some((o) => o.value === cfg.model);
+      modelText.value = known ? '' : cfg.model || '';
       modelText.focus();
       return;
     }
+    markDirty('model');
     void save();
   });
 
@@ -514,9 +660,12 @@ export function buildConfigForm(
     hoverTranslateChk,
     inputTranslateChk,
     translationStyleSel,
+    themeModeSel,
     translateModeSel,
   ].forEach((el) =>
     el.addEventListener('change', () => {
+      const f = el.getAttribute('data-f') || '';
+      markDirty(f === 'modelText' ? 'model' : f);
       save();
       refreshSelectTitles();
     }),
@@ -537,7 +686,11 @@ export function buildConfigForm(
     fallbackInput,
     strongModelInput,
   ].forEach((el) => {
-    el.addEventListener('input', () => scheduleSave());
+    el.addEventListener('input', () => {
+      const f = el.getAttribute('data-f') || '';
+      markDirty(f === 'modelText' ? 'model' : f);
+      scheduleSave();
+    });
   });
   window.addEventListener(
     'pagehide',
@@ -550,6 +703,31 @@ export function buildConfigForm(
     { once: true },
   );
 
+  // 缓存管理：显示当前条数；清空后立即刷新并提示。
+  async function refreshCacheCount() {
+    if (!cacheCountEl) return;
+    try {
+      const stats = getCacheStats();
+      cacheCountEl.textContent = String(stats?.count ?? 0);
+    } catch {
+      /* 计数失败保持占位 */
+    }
+  }
+  void refreshCacheCount();
+  cacheClearBtn?.addEventListener('click', async () => {
+    if (!cacheClearBtn || cacheClearBtn.disabled) return;
+    cacheClearBtn.disabled = true;
+    try {
+      await clearTranslateCache();
+      setStatus('翻译缓存已清空 ✓', false, 2500);
+    } catch {
+      setStatus('缓存清空失败，请重试', true);
+    } finally {
+      cacheClearBtn.disabled = false;
+      void refreshCacheCount();
+    }
+  });
+
   // 测试连接：保存当前配置后翻译一句测试文本，验证 Key / 端点是否可用（P2-3）
   testBtn.addEventListener('click', async () => {
     const saved = await save(); // 先等配置落盘，再发测试请求，避免用旧配置误测
@@ -561,12 +739,12 @@ export function buildConfigForm(
         type: 'TEST_CONNECTION',
       });
       if (res?.ok) {
-        setStatus(`连接成功 ✓ 译文：「${res.translation}」`);
+        setStatus(`连接成功 ✓ 译文：「${res.translation}」`, false, 6000);
       } else {
-        setStatus('连接失败：' + (res?.error || '未知错误'), true);
+        setStatus('连接失败：' + (res?.error || '未知错误'), true, 8000);
       }
     } catch (e: any) {
-      setStatus('连接失败：' + (e?.message || String(e)), true);
+      setStatus('连接失败：' + (e?.message || String(e)), true, 8000);
     } finally {
       testBtn.disabled = false;
     }
@@ -594,20 +772,60 @@ export function buildConfigForm(
     .getValue()
     .then((value) => {
       cfg = normalizeConfig(value);
+      configLoadFailed = false;
       fill();
     })
-    .catch(() => setStatus('读取设置失败，当前显示默认配置', true))
+    .catch(() => {
+      configLoadFailed = true;
+      setStatus('读取设置失败，当前显示默认配置；为防覆盖已暂停保存', true);
+    })
     .finally(() => setFormLoading(false));
+
+  // 所有设置入口都订阅同一份 storage 配置：popup、options、页内完整面板
+  // 不再依赖各自调用方手工转发，任一面板修改后其它面板自动刷新。
+  let unwatchConfig: (() => void) | null = null;
+  try {
+    const unwatch = configItem.watch((value) => {
+      if (disposed) return;
+      if (value) {
+        cfg = normalizeConfig(value);
+        configLoadFailed = false;
+        fill();
+      }
+    });
+    if (typeof unwatch === 'function') unwatchConfig = unwatch;
+  } catch {
+    /* storage 监听不可用时仍保留当前表单的本地保存能力 */
+  }
 
   return {
     update: (next?: AppConfig) => {
-      if (next) cfg = normalizeConfig(next);
+      if (disposed) return;
+      if (next) {
+        cfg = normalizeConfig(next);
+        // 外部传入了有效配置：解除读取失败的保存封锁。
+        configLoadFailed = false;
+      }
       fill();
     },
     updateSiteState: (auto, paused) => {
+      if (disposed) return;
       if (auto !== undefined && autoSiteInput) autoSiteInput.checked = auto;
       if (paused !== undefined && pauseSiteInput) pauseSiteInput.checked = paused;
       syncCheckState();
+    },
+    dispose: () => {
+      disposed = true;
+      if (inputSaveTimer) clearTimeout(inputSaveTimer);
+      inputSaveTimer = null;
+      // 真正退订 storage 监听：否则每次打开页内完整面板都净增一个
+      // onChanged 监听 + 一份被闭包持有的表单 DOM（长会话持续增长）。
+      try {
+        unwatchConfig?.();
+      } catch {
+        /* 重复退订或监听不可用时静默 */
+      }
+      unwatchConfig = null;
     },
   };
 }

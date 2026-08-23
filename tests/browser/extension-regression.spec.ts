@@ -183,9 +183,21 @@ test('popup tabs support keyboard navigation and show a live character count', a
   await page.goto('/tests/browser/popup-regression.html');
   const translateTab = page.getByRole('tab', { name: '翻译' });
   await translateTab.focus();
+  // 翻译 → 历史 → 设置 →（循环）翻译：三标签键盘导航
   await translateTab.press('ArrowRight');
+  const historyTab = page.getByRole('tab', { name: '历史' });
+  await expect(historyTab).toHaveAttribute('aria-selected', 'true');
+  await historyTab.press('ArrowRight');
   await expect(page.getByRole('tab', { name: '设置' })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: '设置' }).press('ArrowLeft');
+  await expect(historyTab).toHaveAttribute('aria-selected', 'true');
+
+  // 历史标签页基础形态：搜索框与空态提示
+  await page.locator('#ot-history-search').fill('');
+  await expect(page.locator('#ot-history-list')).toBeVisible();
+
+  // 环形导航：历史 →（ArrowLeft 回绕）→ 翻译
+  await historyTab.press('ArrowLeft');
   await expect(translateTab).toHaveAttribute('aria-selected', 'true');
 
   await page.locator('#ot-input').fill('hello');
@@ -501,6 +513,34 @@ test('quick settings switches: apple toggles are clickable and persist', async (
   expect(knobTransform).not.toBe('none'); // 已右移（开启态）
 });
 
+test('quick settings panel: gear toggles, outside click and Escape close it', async ({ page }) => {
+  await page.goto('/tests/browser/dom-regression.html');
+  const gear = page.locator('#ot-settings-btn');
+  const panel = page.locator('#ot-settings-panel');
+  await expect(gear).toBeVisible();
+
+  // 齿轮开关语义：打开 → 再点关闭
+  await gear.click();
+  await expect(panel).toBeVisible();
+  await gear.click();
+  await expect(panel).toHaveCount(0);
+
+  // 点击面板外区域（页面空白处）关闭
+  await gear.click();
+  await expect(panel).toBeVisible();
+  await page.mouse.click(10, 10);
+  await expect(panel).toHaveCount(0);
+
+  // Esc 关闭
+  await gear.click();
+  await expect(panel).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveCount(0);
+
+  // 关闭后面板内控件不再残留在 DOM 中
+  await expect(page.locator('#ot-settings-panel select')).toHaveCount(0);
+});
+
 test('full settings modal: centered overlay with blur and sync with quick panel', async ({
   page,
 }) => {
@@ -512,6 +552,13 @@ test('full settings modal: centered overlay with blur and sync with quick panel'
     .getByRole('checkbox', { name: '自动翻译此站' });
   await expect(quickAuto).not.toBeChecked();
   await quickAuto.check({ force: true });
+  await page.waitForTimeout(300);
+
+  // 快速面板修改翻译模式后，完整面板必须读取同一份最新配置。
+  const quickMode = page
+    .locator('#ot-settings-panel')
+    .getByRole('combobox', { name: '翻译模式' });
+  await quickMode.selectOption('manual');
   await page.waitForTimeout(300);
 
   // 打开大面板（小面板自动关闭）→ 本站开关读取到最新状态
@@ -530,6 +577,7 @@ test('full settings modal: centered overlay with blur and sync with quick panel'
   await expect(full.locator('h2', { hasText: '本站' })).toBeVisible();
   const autoFull = full.locator('input[data-site-ctx="auto"]');
   await expect(autoFull).toBeChecked(); // 小面板 → 大面板一致
+  await expect(full.getByRole('combobox', { name: '翻译模式' })).toHaveValue('manual');
 
   // 大面板关闭自动翻译 → 重新打开小面板 → 状态一致
   // 合成点击（避免 Playwright 等待可能的导航信号；change 事件照常触发）
@@ -620,9 +668,16 @@ test('full settings modal: centered overlay with blur and sync with quick panel'
   expect(synced.cacheEnabled).toBe(true); // 外部开 → 大屏同步开
   expect(synced.qualityCheck).toBe(false); // 外部关 → 大屏同步关
 
+  // 完整面板反向修改翻译模式，关闭后快速面板也必须立即更新。
+  await full.getByRole('combobox', { name: '翻译模式' }).selectOption('auto');
+  await page.waitForTimeout(300);
+
   await page.keyboard.press('Escape');
   await expect(full).toBeHidden();
   await page.locator('#ot-settings-btn').click();
+  await expect(
+    page.locator('#ot-settings-panel').getByRole('combobox', { name: '翻译模式' }),
+  ).toHaveValue('auto');
   const quickAuto2 = page
     .locator('#ot-settings-panel')
     .getByRole('checkbox', { name: '自动翻译此站' });

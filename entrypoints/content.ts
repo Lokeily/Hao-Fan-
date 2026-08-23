@@ -28,11 +28,13 @@ import {
   createHoverBubble,
   createInputTranslateButton,
   makeDraggable,
+  setThemeOverride,
   themeColors,
 } from '../utils/content-ui.ts';
 import { mountImageResultOverlay } from '../utils/image-overlay.ts';
 import { isRetryableTranslationError, NoticeCycleGate } from '../utils/notice-policy.ts';
 import { SessionTranslationCache } from '../utils/session-translation-cache.ts';
+import { addHistoryEntry } from '../utils/history-store.ts';
 import { randomId } from '../utils/id.ts';
 import { isSiteDisabled, withSiteDisabled } from '../utils/site-policy.ts';
 import { normalizeConfig, getProviderApiKey, type AppConfig } from '../utils/config.ts';
@@ -41,6 +43,7 @@ import { buildConfigForm } from '../utils/ui.ts';
 import fullSettingsCss from '../styles/options.css?raw';
 import { LANGUAGES } from '../utils/languages.ts';
 import { PROVIDERS } from '../utils/providers.ts';
+import { createSpeakButton } from '../utils/speech.ts';
 import '../styles/content.css';
 
 let activeImageCleanup: (() => void) | null = null;
@@ -71,6 +74,12 @@ export default defineContentScript({
     (window as any).__haofanInjected = true;
 
     let busy = false;
+    // 整页翻译任务代际：每次进入 translatePage 递增（mySeq），用户点「取消」时把
+    // pageCancelSeq 推进到当前代。启动序列中的 await 恢复后据此判断是否已被取消，
+    // 避免「取消点击手工复位 busy 与尚未完成的启动序列竞态」导致状态失步后
+    // 再次触发并发整页翻译。
+    let pageRunSeq = 0;
+    let pageCancelSeq = 0;
     let translatedCount = 0; // 已插入译文计数（避免每次 querySelectorAll 全文档统计，省性能）
     let pageTotalFound = 0; // 本次整页扫描发现的段落总数（进度显示用）
     let estimatedTokensSaved = 0;
@@ -80,6 +89,11 @@ export default defineContentScript({
     let dynamicQueueTimer: ReturnType<typeof setTimeout> | null = null;
     const dynamicRoots = new Set<Element>();
     let dynamicClickHandler: ((event: Event) => void) | null = null;
+    // click-scan 防抖窗口内收集的点击目标（stopDynamic 需要跨作用域清理）
+    let clickTargets: Set<Element> | null = null;
+    // 动态重译冷却队列：元素 → 到期时间戳（stopDynamic 需要跨作用域清理）
+    const cooldownDeadlines = new Map<Element, number>();
+    let cooldownTimer: ReturnType<typeof setTimeout> | null = null;
     let activePageJobId: string | null = null;
     type TranslationItem = { el: Element; text: string };
     let viewportObserver: IntersectionObserver | null = null;
@@ -92,6 +106,8 @@ export default defineContentScript({
     let translationConfigRevision = 0;
     let currentTranslationStyle = 'plain';
     let currentTranslateMode: 'auto' | 'manual' = 'auto';
+  // 当前目标语言（TTS 朗读按它选发音）：配置加载与变化时同步。
+  let currentTargetLang = '中文';
     let hoverTranslateEnabled = true;
     let inputTranslateEnabled = true;
     // 流式开关（设置页「边生成边显示」）：关掉后单条交互直接走普通请求，不再开长连接。
@@ -170,6 +186,10 @@ export default defineContentScript({
       void configItem
         .getValue()
         .then((v) => {
+          if (v) {
+            setThemeOverride(v.themeMode === 'light' || v.themeMode === 'dark' ? v.themeMode : 'auto');
+            if (typeof v.targetLang === 'string') currentTargetLang = v.targetLang;
+          }
           if (v && typeof v.translationStyle === 'string') currentTranslationStyle = v.translationStyle;
           if (v && (v.translateMode === 'auto' || v.translateMode === 'manual')) currentTranslateMode = v.translateMode;
           hoverTranslateEnabled = v ? v.hoverTranslate !== false : true;
@@ -194,6 +214,9 @@ export default defineContentScript({
       };
       safeWatch(configItem, (v) => {
         if (!v) return;
+        // 主题手动覆盖（auto/light/dark）：影响后续新建的所有浮层。
+        setThemeOverride(v.themeMode === 'light' || v.themeMode === 'dark' ? v.themeMode : 'auto');
+        if (typeof v.targetLang === 'string') currentTargetLang = v.targetLang;
         hoverTranslateEnabled = v.hoverTranslate !== false;
         inputTranslateEnabled = v.inputTranslate !== false;
         streamingEnabled = v.streaming !== false;
@@ -203,11 +226,19 @@ export default defineContentScript({
           closeNotice();
           if (!siteDisabled && !document.querySelector('.ot-translation')) void translatePage(true);
         }
-        if (v.translateMode === 'auto' || v.translateMode === 'manual') currentTranslateMode = v.translateMode;
-        fullSettingsFormApi?.update(v);
+        if (v.translateMode === 'auto' || v.translateMode === 'manual') {
+          const prevMode = currentTranslateMode;
+          currentTranslateMode = v.translateMode;
+          // 工具栏空闲态文案跟随模式变化；切入手动模式时给一次性操作提示。
+          refreshToolbarIdleLabels();
+          if (prevMode !== 'manual' && currentTranslateMode === 'manual' && !busy && !siteDisabled) {
+            showStatus('已切换到手动模式：点击段落或划选文字即可翻译', true, 3500);
+          }
+        }
         settingsPanel?.update({
           targetLang: v.targetLang,
           provider: v.provider,
+          translateMode: v.translateMode === 'manual' ? 'manual' : 'auto',
           hoverTranslate: v.hoverTranslate !== false,
           inputTranslate: v.inputTranslate !== false,
         });
@@ -259,7 +290,13 @@ export default defineContentScript({
     // 只用于「用户正在等」的单条交互（划词 / 悬停 / 点击段落 / 输入框）；
     // 整页翻译仍走 TRANSLATE_BATCH 一次请求译 N 段，比逐条流式省得多，不改。
     const STREAM_IDLE_TIMEOUT_MS = 15_000;
-    type StreamResult = { translation: string; issue: string[] | null; savedTokens: number };
+    type StreamResult = {
+      translation: string;
+      issue: string[] | null;
+      savedTokens: number;
+      /** 命中「原文已是目标语言」本地跳过：界面据此提示而非静默显示原文 */
+      localSkipped?: boolean;
+    };
     type StreamPort = ReturnType<typeof runtime.connect>;
     type StreamWaiter = {
       port: StreamPort;
@@ -270,14 +307,44 @@ export default defineContentScript({
     };
     let streamPort: StreamPort | null = null;
     let streamUnavailable = false;
+    let streamRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    const STREAM_RETRY_MS = 30_000;
     const streamWaiters = new Map<string, StreamWaiter>();
+
+    // 端口暂不可用时进入冷却：30 秒后自动恢复尝试。
+    // 此前是一次失败即本页永久禁用流式——一次瞬时抖动（如 SW 正在重启）
+    // 就再也无法享受首字加速，与「流式不可用才回退」的设计意图不符。
+    function markStreamUnavailable() {
+      streamUnavailable = true;
+      if (streamRetryTimer) return;
+      streamRetryTimer = setTimeout(() => {
+        streamRetryTimer = null;
+        streamUnavailable = false;
+      }, STREAM_RETRY_MS);
+    }
 
     // 空闲超时而非总超时：只要还在往外吐字就不算卡住，长文也能正常译完。
     function armStreamTimer(id: string, waiter: StreamWaiter) {
       if (waiter.timer) clearTimeout(waiter.timer);
       waiter.timer = setTimeout(() => {
-        if (streamWaiters.delete(id)) waiter.reject(new Error('流式翻译响应超时'));
+        if (streamWaiters.delete(id)) {
+          waiter.reject(new Error('流式翻译响应超时'));
+          // 本地已放弃并回退普通请求：通知后台取消流式生成，
+          // 否则同一文本会并发生成两份（双倍 Token 与限流压力）。
+          notifyCancelStream(id);
+        }
       }, STREAM_IDLE_TIMEOUT_MS);
+    }
+
+    // 请求已被本地放弃（超时/回退）时通知后台中止生成。端口已断开则无需通知。
+    function notifyCancelStream(id: string) {
+      const port = streamPort;
+      if (!port) return;
+      try {
+        port.postMessage({ type: 'cancel-one', id });
+      } catch {
+        /* 端口正在关闭：后台断连时会自行中止 */
+      }
     }
 
     function rejectPortWaiters(port: StreamPort, reason: string) {
@@ -298,7 +365,7 @@ export default defineContentScript({
             translation?: unknown;
             issue?: unknown;
             error?: unknown;
-            stats?: { estimatedTokensSaved?: unknown };
+            stats?: { estimatedTokensSaved?: unknown; localSkipped?: unknown };
           }
         | null
         | undefined;
@@ -325,6 +392,7 @@ export default defineContentScript({
         translation: typeof msg.translation === 'string' ? msg.translation : '',
         issue: Array.isArray(msg.issue) ? (msg.issue as string[]) : null,
         savedTokens: Math.max(0, Number(msg.stats?.estimatedTokensSaved) || 0),
+        localSkipped: msg.stats?.localSkipped === true,
       });
     }
 
@@ -334,7 +402,7 @@ export default defineContentScript({
       try {
         const port = (runtime as any).connect?.({ name: 'haofan-stream' }) as StreamPort | undefined;
         if (!port) {
-          streamUnavailable = true;
+          markStreamUnavailable();
           return null;
         }
         port.onMessage.addListener(handleStreamMessage);
@@ -347,8 +415,8 @@ export default defineContentScript({
         streamPort = port;
         return port;
       } catch {
-        // connect 抛错基本意味着扩展已更新 / 后台不可达，本页面不再重试端口。
-        streamUnavailable = true;
+        // connect 抛错多为瞬时状态（扩展更新 / SW 重启中），进入冷却后自动恢复。
+        markStreamUnavailable();
         return null;
       }
     }
@@ -416,6 +484,7 @@ export default defineContentScript({
         translation,
         issue: Array.isArray(res.issue) ? (res.issue as string[]) : null,
         savedTokens: Math.max(0, Number(res.stats?.estimatedTokensSaved) || 0),
+        localSkipped: res.localSkipped === true,
       };
     }
 
@@ -495,6 +564,10 @@ export default defineContentScript({
     // 返回 true 表示已被拦下（引导卡已展示），调用方应直接返回、不再发任何请求。
     async function guardSetupGate(userInitiated = false): Promise<boolean> {
       if (!(await needsSetupNow())) return false;
+      // 单条路径被拦下同样置位 awaitingSetup：用户填好 Key 后的自动续翻
+      // 回调依赖它（此前只对整页生效，悬停/划词触发引导后填 Key 不会接着翻）。
+      // 手动模式下整页续翻不会执行（translatePage 会提示手动模式），但置位无害。
+      awaitingSetup = true;
       showSetupGuide(userInitiated);
       return true;
     }
@@ -618,7 +691,10 @@ export default defineContentScript({
       lazyPending.delete(item.el);
       html.classList.remove(OBSERVED_CLASS, PENDING_CLASS);
       const outcome = applyTranslation(item.el, item.text, cached);
-      if (outcome === 'inserted') translatedCount++;
+      if (outcome === 'inserted') {
+        translatedCount++;
+        refreshToolbarIdleLabels();
+      }
       return outcome !== 'stale';
     }
 
@@ -629,7 +705,7 @@ export default defineContentScript({
       return pageTotalFound > 0 ? `${translatedCount}/${pageTotalFound}` : String(translatedCount);
     }
 
-    function showStatus(text: string, transient = false) {
+    function showStatus(text: string, transient = false, durationMs = 2000) {
       if (!statusEl) {
         statusEl = document.createElement('div');
         statusEl.id = 'ot-status';
@@ -642,17 +718,17 @@ export default defineContentScript({
           zIndex: '2147483646',
           background: 'rgba(28,28,30,0.86)',
           color: '#fff',
-          font: '12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          font: '12px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
           padding: '6px 11px',
           borderRadius: '8px',
           pointerEvents: 'none',
           boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
           opacity: '0',
           transition: 'opacity 0.2s ease',
-          maxWidth: '240px',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
+          maxWidth: '300px',
+          whiteSpace: 'normal',
+          textAlign: 'right',
+          overflowWrap: 'break-word',
         });
         document.documentElement.appendChild(statusEl);
       }
@@ -662,7 +738,7 @@ export default defineContentScript({
       if (transient) {
         statusTimer = setTimeout(() => {
           if (statusEl) statusEl.style.opacity = '0';
-        }, 2000);
+        }, durationMs);
       }
     }
     function hideStatus() {
@@ -705,6 +781,8 @@ export default defineContentScript({
       pageTotalFound = 0;
       estimatedTokensSaved = 0;
       hideStatus();
+      // 计数清零后工具栏提示回到「翻译本页」（busy 时由加载态文案接管）。
+      refreshToolbarIdleLabels();
     }
 
     // ===== 并发分块执行 =====
@@ -818,6 +896,12 @@ export default defineContentScript({
         lazyPending.clear();
         return;
       }
+      // 任务已被不可重试错误封锁：清空懒队列并停止入队，避免滚动持续触发
+      // 「入队 → 规划 → 入口被弹掉」的空转循环。
+      if (blockedPageJobId === jobId) {
+        stopLazyTranslation();
+        return;
+      }
       const items = Array.from(lazyPending.values()).filter((item) => item.el.isConnected);
       lazyPending.clear();
       if (items.length === 0) return;
@@ -903,6 +987,7 @@ export default defineContentScript({
       if (jobId && activePageJobId !== jobId) return;
       if (stale.length > 0) observeForLazyTranslation(stale);
       translatedCount += inserted;
+      refreshToolbarIdleLabels();
       if (inserted > 0) showStatus(`翻译中… 已译 ${progressText()} 段`);
       if (failures > 0) {
         throw firstError instanceof Error ? firstError : new Error(`${failures} 段逐条翻译失败`);
@@ -978,6 +1063,7 @@ export default defineContentScript({
           observeForLazyTranslation(stale);
         }
         translatedCount += inserted;
+        refreshToolbarIdleLabels();
         if (inserted > 0) {
           const savedText = estimatedTokensSaved > 0 ? ` · 约省 ${estimatedTokensSaved} Token` : '';
           showStatus(`翻译中… 已译 ${progressText()} 段${savedText}`);
@@ -1017,6 +1103,10 @@ export default defineContentScript({
       }
       if (busy) return;
       busy = true;
+      const mySeq = ++pageRunSeq;
+      const cancelled = () => pageCancelSeq >= mySeq;
+      // 只有当本代仍是最新任务时才能复位交互状态；若已有更新的任务接管，一律不动。
+      const ownedByMe = () => pageRunSeq === mySeq;
 
       // 引擎/Key 还没配好：一个请求都不发，直接给引导。
       // 用户主动点翻译时强制展示（点了没反应更困惑），自动翻译时只打扰一次。
@@ -1024,6 +1114,14 @@ export default defineContentScript({
         busy = false;
         awaitingSetup = true;
         showSetupGuide(userInitiated);
+        return;
+      }
+      // await 期间用户点了「取消」：就此收尾，不再继续启动序列。
+      if (cancelled()) {
+        if (ownedByMe()) {
+          busy = false;
+          setToolbarLoading(false);
+        }
         return;
       }
 
@@ -1039,6 +1137,11 @@ export default defineContentScript({
         // 先清理旧译文层，防止堆叠
         clearTranslations();
         jobId = randomId();
+        if (cancelled()) {
+          busy = false;
+          setToolbarLoading(false);
+          return;
+        }
         activePageJobId = jobId;
         setToolbarLoading(true);
         showStatus('翻译中…');
@@ -1132,7 +1235,11 @@ export default defineContentScript({
       } finally {
         // 取消后用户可能已经开始了新任务。旧任务的异步收尾不能清掉新任务的
         // busy / 按钮状态，也不能替新任务提前启动动态监听。
-        if (activePageJobId === jobId) {
+        if (cancelled() && ownedByMe()) {
+          // 本任务被用户取消：复位交互状态，但不启动动态监听。
+          busy = false;
+          setToolbarLoading(false);
+        } else if (activePageJobId === jobId) {
           busy = false;
           setToolbarLoading(false);
           if (initial) startDynamicTranslation();
@@ -1166,7 +1273,10 @@ export default defineContentScript({
           classes?.remove(PENDING_CLASS, OBSERVED_CLASS);
           return;
         }
-        if (translation?.isConnected) translatedCount = Math.max(0, translatedCount - 1);
+        if (translation?.isConnected) {
+          translatedCount = Math.max(0, translatedCount - 1);
+          refreshToolbarIdleLabels();
+        }
         translation?.remove();
         translationNodes.delete(element);
         const classes = (element as HTMLElement).classList;
@@ -1222,15 +1332,20 @@ export default defineContentScript({
       //   ② 其余变化 → 每个元素 8 秒内最多重译一次，冷却期内的抖动合并成一次。
       const RETRANSLATE_COOLDOWN_MS = 8_000;
       const lastRetranslateAt = new WeakMap<Element, number>();
-      const cooldownQueue = new Set<Element>();
-      let cooldownTimer: ReturnType<typeof setTimeout> | null = null;
+      // 元素 → 各自的到期时间。此前是共享 Set + 单一定时器：后加入的元素被迫
+      // 跟随最早入队者的期限，最多晚一个完整冷却周期才刷新。
+      // cooldownDeadlines 与 cooldownTimer 声明在模块级（stopDynamic 清理用）。
 
-      // 抹掉数字与数字周边符号后的「文字骨架」：骨架相同即认为句子没变，只是数值在动。
+      // 带符号的数字 token：符号是数值的一部分（-5.2 与 5.2 是不同的值），
+      // 百分号跟随数值。骨架比对与就地补数共用同一套 token 定义，
+      // 保证「只有符号在变」不会被误判成「只是数字在动」。
+      const DYNAMIC_NUMBER_RE = /[-+]?\d+(?:[.,]\d+)*%?/g;
+
+      // 抹掉数字 token 后的「文字骨架」：骨架相同即认为句子没变，只是数值在动。
+      // 注意不能把 +/-/% 等符号连同数字一起抹掉——否则 -5.2% → 5.2%、50% → 50
+      // 这类符号变化会被当成纯数值更新吞掉，过期译文永久滞留。
       const digitSkeleton = (text: string) =>
-        text
-          .replace(/[\d\s.,:%+\-/]+/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
+        text.replace(DYNAMIC_NUMBER_RE, ' ').replace(/\s+/g, ' ').trim();
 
       // 把译文里的旧数字按出现顺序替换成新数字。任何一处对不上就整体放弃，
       // 宁可继续显示旧译文，也绝不拼出错误的数字。
@@ -1239,8 +1354,8 @@ export default defineContentScript({
         prev: string,
         next: string,
       ): boolean => {
-        const before = prev.match(/\d+/g) || [];
-        const after = next.match(/\d+/g) || [];
+        const before = prev.match(DYNAMIC_NUMBER_RE) || [];
+        const after = next.match(DYNAMIC_NUMBER_RE) || [];
         if (before.length !== after.length) return false;
         if (before.length === 0) {
           node.dataset.source = next;
@@ -1264,19 +1379,32 @@ export default defineContentScript({
         return true;
       };
 
+      const armCooldownTimer = () => {
+        if (cooldownTimer) return;
+        let minDeadline = Number.POSITIVE_INFINITY;
+        cooldownDeadlines.forEach((deadline) => {
+          if (deadline < minDeadline) minDeadline = deadline;
+        });
+        if (!Number.isFinite(minDeadline)) return;
+        // 至少 200ms：把同一轮抖动的多次入队合并成一次唤醒。
+        cooldownTimer = setTimeout(flushCooldownQueue, Math.max(200, minDeadline - Date.now()));
+      };
+
       const flushCooldownQueue = () => {
         cooldownTimer = null;
-        const pending = Array.from(cooldownQueue);
-        cooldownQueue.clear();
-        pending.forEach((anchor) => {
+        const now = Date.now();
+        Array.from(cooldownDeadlines.entries()).forEach(([anchor, deadline]) => {
+          if (deadline > now) return;
+          cooldownDeadlines.delete(anchor);
           if (anchor.isConnected) refreshChangedText(anchor);
         });
+        // 队列里还有未到期元素（比首个期限更晚入队）→ 按下一个最近期限继续等。
+        if (cooldownDeadlines.size > 0) armCooldownTimer();
       };
 
       const queueAfterCooldown = (anchor: Element, waitMs: number) => {
-        cooldownQueue.add(anchor);
-        if (cooldownTimer) return;
-        cooldownTimer = setTimeout(flushCooldownQueue, Math.max(200, waitMs));
+        cooldownDeadlines.set(anchor, Date.now() + Math.max(200, waitMs));
+        armCooldownTimer();
       };
 
       const refreshChangedText = (element: Element) => {
@@ -1347,11 +1475,35 @@ export default defineContentScript({
           }
           let parentTextChanged = false;
           m.removedNodes.forEach((node) => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              if (!closestTextBlock(node as Element, true)) parentTextChanged = true;
-              releaseRemovedSubtree(node as Element);
+            if (node.nodeType !== Node.ELEMENT_NODE) {
+              if (node.nodeType === Node.TEXT_NODE) parentTextChanged = true;
+              return;
             }
-            if (node.nodeType === Node.TEXT_NODE) parentTextChanged = true;
+            const el = node as Element;
+            // 自身注入的节点（译文/状态/工具栏/图片面板）被我们自己移除时不当作
+            // 页面内容变化，否则每次清理译文都会触发一次 +8s 的幽灵重译唤醒。
+            if (
+              el.closest?.(
+                '#ot-error-modal, .ot-translation, .ot-img-panel, .ot-img-seg, #ot-toolbar, #ot-status, .ot-selbtn',
+              )
+            )
+              return;
+            // SPA 框架的「移动」= 同步 remove + insert，回调执行时节点往往已经
+            // 重新连接。这是移动而非删除：跟随搬迁译文节点即可，不要 release——
+            // 否则列表排序/虚拟滚动时会出现译文闪烁与重复请求。
+            if (el.isConnected) {
+              const moved = translationNodes.get(el);
+              if (moved && !moved.isConnected && !el.closest('.ot-translation')) {
+                try {
+                  el.insertAdjacentElement('afterend', moved);
+                } catch {
+                  /* 插入失败则交给后续重扫兜底 */
+                }
+              }
+              return;
+            }
+            if (!closestTextBlock(el, true)) parentTextChanged = true;
+            releaseRemovedSubtree(el);
           });
           m.addedNodes.forEach((node) => {
             if (node.nodeType === Node.TEXT_NODE) {
@@ -1399,21 +1551,30 @@ export default defineContentScript({
       });
 
       // ★ 修复：click-scan 不再重扫全屏（会导致已处理的元素被重复翻译）
-      // 改为只扫描 display:none → visible 切换的元素（通过检查可见性变化来发现新内容）
+      // 改为只扫描 display:none → visible 切换的元素（通过检查可见性变化来发现新内容）。
+      // 防抖窗口内收集全部点击目标：此前闭包只保留最后一个 target，
+      // 快速连点不同区域时前面的子树永远不会被扫描。
       dynamicClickHandler = (e: Event) => {
-        if (dynamicClickTimer) clearTimeout(dynamicClickTimer);
         const target = e.target as Element | null;
+        if (!target || target.nodeType !== 1) return;
+        if (!clickTargets) clickTargets = new Set();
+        clickTargets.add(target as Element);
+        if (dynamicClickTimer) clearTimeout(dynamicClickTimer);
         dynamicClickTimer = setTimeout(() => {
           dynamicClickTimer = null;
-          if (!dynamicActive || !target || target.nodeType !== 1) return;
-          const root = target as Element;
+          const targets = Array.from(clickTargets ?? []);
+          clickTargets = null;
+          if (!dynamicActive || targets.length === 0) return;
           // 全页点击（点到 body / html 本身）直接交给 MutationObserver，不再整页重扫；
           // 只对点击元素子树做有界扫描，避免每次点击都遍历整棵 DOM 造成卡顿
           //（回归 0.1.0 修复前的“翻译变慢”问题）。Portal 菜单 / 显隐切换由 MutationObserver 接管。
-          if (root === document.body || root === document.documentElement) return;
-          const roots = [root];
-          const control = root.closest('[aria-controls], [aria-owns]');
-          if (control) {
+          const roots: Element[] = [];
+          for (const target of targets) {
+            if (target === document.body || target === document.documentElement) continue;
+            if (roots.includes(target)) continue;
+            roots.push(target);
+            const control = target.closest('[aria-controls], [aria-owns]');
+            if (!control) continue;
             const ids =
               `${control.getAttribute('aria-controls') || ''} ${control.getAttribute('aria-owns') || ''}`
                 .split(/\s+/)
@@ -1462,9 +1623,13 @@ export default defineContentScript({
       dynamicClickHandler = null;
       if (dynamicClickTimer) clearTimeout(dynamicClickTimer);
       dynamicClickTimer = null;
+      clickTargets = null;
       if (dynamicQueueTimer) clearTimeout(dynamicQueueTimer);
       dynamicQueueTimer = null;
       dynamicRoots.clear();
+      cooldownDeadlines.clear();
+      if (cooldownTimer) clearTimeout(cooldownTimer);
+      cooldownTimer = null;
       dynamicActive = false;
     }
 
@@ -1488,7 +1653,9 @@ export default defineContentScript({
     }
 
     function showSitePausedNotice() {
-      showNotice('当前网站已暂停翻译，请在扩展弹窗中恢复', `site-policy-${randomId()}`);
+      // 固定 cycle id：同一轮提示期内重复触发（右键/自动翻译/图片结果）只弹一次，
+      // 用 randomId 会让 NoticeCycleGate 永远放行、反复闪屏。
+      showNotice('当前网站已暂停翻译，请在扩展弹窗中恢复', 'site-paused');
     }
 
     // ---- 划词翻译：结果留在独立浮层中，不改写正文，也不会覆盖整段译文。 ----
@@ -1498,6 +1665,8 @@ export default defineContentScript({
     let selectionTimer: ReturnType<typeof setTimeout> | null = null;
     let selectionRequestId = 0;
     let activeSelectionJobId: string | null = null;
+    // 面板定位时的滚动基准：固定态滚动时按差量平移面板，保持与选区对齐。
+    let selectionAnchorScroll = { x: 0, y: 0 };
 
     function hideSelectionUi() {
       selectionRequestId++;
@@ -1552,6 +1721,8 @@ export default defineContentScript({
           : Math.max(8, rect.top - estimatedHeight - 8);
       host.style.setProperty('left', `${left}px`, 'important');
       host.style.setProperty('top', `${top}px`, 'important');
+      // 记录定位时的滚动基准：后续滚动按差量平移面板（固定态跟随）。
+      selectionAnchorScroll = { x: window.scrollX, y: window.scrollY };
       requestAnimationFrame(() => {
         if (!host.isConnected) return;
         const box = host.getBoundingClientRect();
@@ -1588,6 +1759,7 @@ export default defineContentScript({
       host: HTMLDivElement,
       snapshot: SelectionSnapshot,
       translation?: string,
+      opts?: { localSkipped?: boolean },
     ) {
       const shadow = host.shadowRoot!;
       shadow.querySelectorAll(':not(style)').forEach((node) => node.remove());
@@ -1618,6 +1790,13 @@ export default defineContentScript({
       result.textContent = translation === undefined ? '翻译中…' : translation;
       panel.append(head, source, result);
       if (translation !== undefined) {
+        // 本地跳过提示：译文与原文相同不再让用户怀疑「翻译没生效」。
+        if (opts?.localSkipped) {
+          const hint = document.createElement('div');
+          hint.className = 'skip-hint';
+          hint.textContent = '原文已是目标语言，未翻译';
+          panel.appendChild(hint);
+        }
         const actions = document.createElement('div');
         actions.className = 'actions';
         const copy = document.createElement('button');
@@ -1635,6 +1814,10 @@ export default defineContentScript({
             copy.textContent = '复制失败';
           }
         });
+        const speakBtn = createSpeakButton(() => translation, () => currentTargetLang);
+        speakBtn.className = 'action';
+        speakBtn.style.minHeight = '28px';
+        actions.appendChild(speakBtn);
         actions.appendChild(copy);
         panel.appendChild(actions);
       }
@@ -1683,10 +1866,22 @@ export default defineContentScript({
         if (requestId !== selectionRequestId || host !== selectionHost) return;
         const translation = res.translation;
         if (!translation) throw new Error('未返回有效译文');
-        if (requestConfigRevision === translationConfigRevision) {
-          sessionTranslations.remember(snapshot.text, translation);
+        // 「原文已是目标语言」的跳过结果不进会话缓存：缓存通道只存字符串、
+        // 会丢失 localSkipped 标志，导致第二次起提示消失（困惑回归）。
+        if (!res.localSkipped) {
+          // 历史记录独立于配置版本；会话缓存仍要求配置未中途变化。
+          void addHistoryEntry({
+            text: snapshot.text,
+            translation,
+            source: 'selection',
+          });
+          if (requestConfigRevision === translationConfigRevision) {
+            sessionTranslations.remember(snapshot.text, translation);
+          }
         }
-        renderSelectionPanel(host, snapshot, translation);
+        renderSelectionPanel(host, snapshot, translation, {
+          localSkipped: res.localSkipped === true,
+        });
       } catch (error) {
         if (requestId !== selectionRequestId || host !== selectionHost) return;
         renderSelectionPanel(host, snapshot, '翻译失败');
@@ -1756,7 +1951,21 @@ export default defineContentScript({
     window.addEventListener(
       'scroll',
       () => {
-        if (!selectionPinned) hideSelectionUi();
+        if (!selectionPinned) {
+          hideSelectionUi();
+          return;
+        }
+        // 固定态：面板随页面滚动平移，保持与选区原文对齐。
+        const host = selectionHost;
+        if (!host || !host.isConnected) return;
+        const dx = window.scrollX - selectionAnchorScroll.x;
+        const dy = window.scrollY - selectionAnchorScroll.y;
+        if (!dx && !dy) return;
+        selectionAnchorScroll = { x: window.scrollX, y: window.scrollY };
+        const curLeft = parseFloat(host.style.left) || 0;
+        const curTop = parseFloat(host.style.top) || 0;
+        host.style.setProperty('left', `${curLeft + dx}px`, 'important');
+        host.style.setProperty('top', `${curTop + dy}px`, 'important');
       },
       true,
     );
@@ -1786,8 +1995,14 @@ export default defineContentScript({
             insertTranslation(el, partial, text);
           },
         });
-        sessionTranslations.remember(text, r.translation);
-        applyTranslation(el, text, r.translation);
+        // 跳过结果不进会话缓存（缓存通道会丢 localSkipped 标志）。
+        if (!r.localSkipped) sessionTranslations.remember(text, r.translation);
+        const outcome = applyTranslation(el, text, r.translation);
+        // 手动路径同样计数：否则工具栏「收起全部译文」的 title/aria 与实际行为相反。
+        if (outcome === 'inserted') {
+          translatedCount++;
+          refreshToolbarIdleLabels();
+        }
         estimatedTokensSaved += r.savedTokens;
       } catch {
         /* 翻译失败静默，不阻断交互；但半截译文必须撤掉 */
@@ -1818,20 +2033,40 @@ export default defineContentScript({
     );
 
     // 接收来自 background 的指令
-    runtime.onMessage.addListener((msg: any) => {
+    runtime.onMessage.addListener((msg: any, _sender, sendResponse) => {
       if (msg?.type === 'SITE_POLICY_CHANGED' && typeof msg.payload?.disabled === 'boolean') {
         sitePolicyRevision++;
         setSiteDisabledState(msg.payload.disabled);
-      } else if (msg?.type === 'TRANSLATE_PAGE') {
-        void sitePolicyReady.then(() =>
-          siteDisabled ? showSitePausedNotice() : translatePage(true, true),
-        );
-      } else if (msg?.type === 'SHOW_IMAGE_RESULT') {
+        return;
+      }
+      if (msg?.type === 'TRANSLATE_PAGE') {
+        // 向调用方（popup）回传真实结果：手动模式 / 已暂停不再被误报为成功。
+        void sitePolicyReady.then(() => {
+          if (siteDisabled) {
+            showSitePausedNotice();
+            sendResponse({ ok: false, reason: 'paused' });
+            return;
+          }
+          if (currentTranslateMode === 'manual') {
+            showStatus('手动模式：点击段落或划选文字即可翻译（可在设置中切换）', true);
+            sendResponse({ ok: false, reason: 'manual' });
+            return;
+          }
+          void translatePage(true, true);
+          sendResponse({ ok: true });
+        });
+        return true; // 异步应答
+      }
+      if (msg?.type === 'SHOW_IMAGE_RESULT') {
         if (siteDisabled) showSitePausedNotice();
         else showImageResult(msg.payload?.srcUrl, msg.payload?.result);
-      } else if (msg?.type === 'SHOW_ERROR') {
+        return;
+      }
+      if (msg?.type === 'SHOW_ERROR') {
         showNotice(msg.payload?.message || '操作失败', `external-${randomId()}`);
-      } else if (msg?.type === 'TRANSLATE_SELECTION') {
+        return;
+      }
+      if (msg?.type === 'TRANSLATE_SELECTION') {
         void sitePolicyReady.then(() => {
           if (siteDisabled) {
             showSitePausedNotice();
@@ -1855,7 +2090,16 @@ export default defineContentScript({
       settingsWriteQueue = settingsWriteQueue.then(task).catch(() => {});
     };
 
+    // 快速设置面板的全局关闭监听（点击面板外 / Esc），随关闭一起移除。
+    let settingsDismiss: (() => void) | null = null;
+    // 打开代际号：openSettingsPanel 是 async（前置多次存储读取），快速双击齿轮时
+    // 两次调用会并发执行——没有守卫的话先完成的 host 会失去引用成为孤儿面板，
+    // 永远无法被 closeSettingsPanel 移除。
+    let settingsPanelSeq = 0;
+
     function closeSettingsPanel() {
+      settingsDismiss?.();
+      settingsDismiss = null;
       settingsPanel?.host.remove();
       settingsPanel = null;
     }
@@ -1863,11 +2107,15 @@ export default defineContentScript({
     // ===== 页面内完整设置大面板（网页中央弹窗） =====
     let fullSettingsHost: HTMLElement | null = null;
     let fullSettingsFormApi: ReturnType<typeof buildConfigForm> | null = null;
+    // 表单构建代际号：防止「关闭→重开」竞态下旧异步构建覆盖新面板的 formApi。
+    let fullSettingsBuildSeq = 0;
     let fullSettingsEsc: ((e: KeyboardEvent) => void) | null = null;
     let fullSettingsWheelLock: ((e: WheelEvent) => void) | null = null;
     let fullSettingsTouchLock: ((e: TouchEvent) => void) | null = null;
 
     function closeFullSettings() {
+      // 使在途的异步表单构建失效（代际号推进）
+      fullSettingsBuildSeq++;
       if (fullSettingsEsc) {
         document.removeEventListener('keydown', fullSettingsEsc, true);
         fullSettingsEsc = null;
@@ -1880,6 +2128,7 @@ export default defineContentScript({
         window.removeEventListener('touchmove', fullSettingsTouchLock, true);
         fullSettingsTouchLock = null;
       }
+      fullSettingsFormApi?.dispose();
       fullSettingsHost?.remove();
       fullSettingsHost = null;
       fullSettingsFormApi = null;
@@ -2017,11 +2266,6 @@ export default defineContentScript({
       };
       window.addEventListener('wheel', fullSettingsWheelLock, true);
       window.addEventListener('touchmove', fullSettingsTouchLock, true);
-      window.addEventListener(
-        'pointerup',
-        () => {},
-        { once: true },
-      );
 
       // 样式直接来自打包进内容脚本的 options.css（?raw），不依赖网络。
       const sheet = document.createElement('style');
@@ -2030,16 +2274,22 @@ export default defineContentScript({
         .replace(/\bbody\b/g, '.ot-full-settings-body');
       shadow.prepend(sheet);
 
-      // 站点偏好初始状态
+      // 站点偏好初始状态。代际守卫：面板可能在存储读取期间被关闭又重开，
+      // 旧 IIFE 恢复后不得覆盖新面板的 formApi（否则关闭时 dispose 的是死对象，
+      // 活表单的监听永远不被退订）。
+      const buildSeq = ++fullSettingsBuildSeq;
       void (async () => {
         const [disabledSites, autoSites] = await Promise.all([
           disabledSitesItem.getValue(),
           autoSitesItem.getValue(),
         ]);
+        if (buildSeq !== fullSettingsBuildSeq) return;
         try {
           fullSettingsFormApi = buildConfigForm(mount, false, {
             host: location.host,
-            autoTranslate: isSiteDisabled(autoSites, location.href),
+            // 与自动翻译运行时判断（autoSites === null || ...）保持同一语义：
+            // null = 从未配置 = 默认自动翻译。漏掉前缀会让开关显示与实际行为相反。
+            autoTranslate: autoSites === null || isSiteDisabled(autoSites, location.href),
             paused: isSiteDisabled(disabledSites, location.href),
             onAuto: (enabled) => {
               enqueueSettingsWrite(async () => {
@@ -2062,14 +2312,18 @@ export default defineContentScript({
       })();
     }
 
-    async function openSettingsPanel(anchorX: number, anchorY: number) {
+    async function openSettingsPanel(anchorX: number, anchorY: number, anchorTop = anchorY) {
+      const mySeq = ++settingsPanelSeq;
       closeSettingsPanel();
       try {
         const cfg = normalizeConfig(await configItem.getValue());
+        // await 期间可能已有更新的一次打开（或被关闭）：放弃本次结果，防孤儿面板。
+        if (mySeq !== settingsPanelSeq) return;
         const [disabledSites, autoSites] = await Promise.all([
           disabledSitesItem.getValue(),
           autoSitesItem.getValue(),
         ]);
+        if (mySeq !== settingsPanelSeq) return;
         const paused = isSiteDisabled(disabledSites, location.href);
         const autoOn = autoSites === null || isSiteDisabled(autoSites, location.href);
         const hoverOn = cfg.hoverTranslate !== false;
@@ -2085,10 +2339,11 @@ export default defineContentScript({
         } catch {
           /* 无持久化位置时跟随锚点 */
         }
-        settingsPanel = createSettingsPanel({
+        const panel = createSettingsPanel({
           languages: LANGUAGES.map((l) => l.name),
           providers: PROVIDERS.map((p) => ({ id: p.id, name: p.name, needsKey: p.needsKey })),
           targetLang: cfg.targetLang,
+          translateMode: cfg.translateMode === 'manual' ? 'manual' : 'auto',
           provider: cfg.provider,
           sitePaused: paused,
           siteHost: location.host,
@@ -2121,17 +2376,26 @@ export default defineContentScript({
               sessionTranslations.clear();
             });
           },
+          onTranslateMode: (value) => {
+            enqueueSettingsWrite(async () => {
+              const current = normalizeConfig(await configItem.getValue());
+              await configItem.setValue({ ...current, translateMode: value });
+            });
+          },
           onProvider: (value) => {
             enqueueSettingsWrite(async () => {
               const provider = PROVIDERS.find((p) => p.id === value);
               if (!provider) return;
-              const current = normalizeConfig(await configItem.getValue());
-              await configItem.setValue({
-                ...current,
-                provider: value,
-                baseUrl: provider.baseUrl,
-                model: provider.defaultModel,
-              });
+               const current = normalizeConfig(await configItem.getValue());
+               const nextConfig = value === 'custom'
+                 ? { ...current, provider: value }
+                 : {
+                     ...current,
+                     provider: value,
+                     baseUrl: provider.baseUrl,
+                     model: provider.defaultModel,
+                   };
+               await configItem.setValue(nextConfig);
               translationConfigRevision++;
               sessionTranslations.clear();
             });
@@ -2151,25 +2415,53 @@ export default defineContentScript({
             void settingsPanelPosItem.setValue({ x, y }).catch(() => {});
           },
         });
+        // 构建完成后再校验一次代际：期间被关闭/被更新的打开取代则丢弃本次面板。
+        if (mySeq !== settingsPanelSeq) {
+          panel.host.remove();
+          return;
+        }
+        settingsPanel = panel;
         // 默认定位在齿轮上方（工具栏常驻右下角，放下方会超出视口）；
-        // 上方放不下再放下方，最后按面板实际尺寸夹取在视口内。
-        const panelW = settingsPanel.host.offsetWidth || 320;
-        const panelH = settingsPanel.host.offsetHeight || 400;
-        if (panelY + panelH > window.innerHeight - 8 && anchorY - panelH - 8 >= 8) {
-          panelY = anchorY - panelH - 8;
+        // 上方放不下再放下方。注意上方展开必须与工具栏顶边留出间隙：
+        // 面板底边压住工具栏会让齿轮收不到点击（开关语义失效）。
+        const panelW = panel.host.offsetWidth || 320;
+        const panelH = panel.host.offsetHeight || 400;
+        if (panelY + panelH > window.innerHeight - 8 && anchorTop - panelH - 12 >= 8) {
+          panelY = anchorTop - panelH - 12;
         }
         const maxX = Math.max(8, window.innerWidth - panelW - 8);
         const maxY = Math.max(8, window.innerHeight - panelH - 8);
-        settingsPanel.host.style.setProperty(
+        panel.host.style.setProperty(
           'left',
           `${Math.min(Math.max(8, panelX), maxX)}px`,
           'important',
         );
-        settingsPanel.host.style.setProperty(
+        panel.host.style.setProperty(
           'top',
           `${Math.min(Math.max(8, panelY), maxY)}px`,
           'important',
         );
+        // 与完整设置面板保持一致的关闭交互：点击面板外或按 Esc 关闭。
+        // 工具栏（含齿轮）上的点击不在此处理，交给齿轮自己的开关逻辑。
+        // 闭包引用本地 panel：即使期间 settingsPanel 被替换，判定依然准确。
+        const onDocPointerDown = (event: PointerEvent) => {
+          if (event.composedPath().includes(panel.host)) return;
+          if ((event.target as Element | null)?.closest?.('#ot-toolbar')) return;
+          if (settingsPanel === panel) closeSettingsPanel();
+        };
+        const onDocKeyDown = (event: KeyboardEvent) => {
+          if (event.key !== 'Escape') return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (settingsPanel === panel) closeSettingsPanel();
+        };
+        document.addEventListener('pointerdown', onDocPointerDown, true);
+        document.addEventListener('keydown', onDocKeyDown, true);
+        settingsDismiss = () => {
+          document.removeEventListener('pointerdown', onDocPointerDown, true);
+          document.removeEventListener('keydown', onDocKeyDown, true);
+          settingsDismiss = null;
+        };
       } catch {
         /* 存储不可用时静默 */
       }
@@ -2180,6 +2472,7 @@ export default defineContentScript({
     let hoverTimer: ReturnType<typeof setTimeout> | null = null;
     let hoverPinned = false;
     let hoverEl: Element | null = null;
+    let hoverRequestId = 0;
 
     function hideHoverBubble() {
       if (hoverPinned) return;
@@ -2197,8 +2490,18 @@ export default defineContentScript({
     }
 
     async function showHoverBubbleFor(el: Element) {
+      if (!el.isConnected) return;
+      const myRequest = ++hoverRequestId;
       // 未配置 Key：不发起请求（悬停属被动触发，引导只弹一次）。
       if (await guardSetupGate()) return;
+      // await 期间指针可能已经移走：此时拆掉当前气泡、强显旧目标的气泡
+      // 会与用户的实际位置相悖，直接放弃本次过期请求。
+      if (myRequest !== hoverRequestId) return;
+      try {
+        if (!el.matches(':hover')) return;
+      } catch {
+        /* :hover 匹配不可用时忽略该检查 */
+      }
       if (hoverPinned) return;
       hideHoverBubble();
       hoverEl = el;
@@ -2228,8 +2531,9 @@ export default defineContentScript({
       })
         .then((r) => {
           if (!hoverBubble || hoverEl !== el) return;
-          hoverBubble.setTranslation(r.translation);
-          sessionTranslations.remember(text, r.translation);
+          hoverBubble.setTranslation(r.translation, { localSkipped: r.localSkipped === true });
+          // 跳过结果不进会话缓存（见划词路径同款注释）。
+          if (!r.localSkipped) sessionTranslations.remember(text, r.translation);
           estimatedTokensSaved += r.savedTokens;
         })
         .catch((error) => {
@@ -2310,6 +2614,15 @@ export default defineContentScript({
       if (!hoverPinned) hideHoverBubble();
     }, true);
 
+    // Esc 关闭「固定」的悬停气泡：与其他浮层的 Esc 语义一致。
+    // 仅拦固定态且不 stopPropagation：未固定气泡会随鼠标移开自然消失，
+    // 若在此吞掉 Esc 会破坏宿主页面自己的快捷键。
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !hoverBubble || !hoverPinned) return;
+      hoverPinned = false;
+      hideHoverBubble();
+    });
+
     // ===== 输入框翻译：聚焦网页输入框时显示「译」按钮 =====
     let inputBtn: HTMLElement | null = null;
     let inputTarget: HTMLTextAreaElement | HTMLInputElement | null = null;
@@ -2387,6 +2700,20 @@ export default defineContentScript({
         if (inputResultHost !== host) return;
         {
           host.textContent = res.translation;
+          // 本地跳过提示：输入框内容已是目标语言时明确说明，而非静默显示原文。
+          if (res.localSkipped === true) {
+            const hint = document.createElement('div');
+            hint.textContent = '原文已是目标语言，未翻译';
+            Object.assign(hint.style, {
+              marginTop: '6px',
+              color: '#8e8e93',
+              fontSize: '11px',
+              fontFamily: 'inherit',
+            });
+            host.appendChild(hint);
+          } else {
+            void addHistoryEntry({ text, translation: res.translation, source: 'input' });
+          }
           const copy = document.createElement('button');
           copy.type = 'button';
           copy.textContent = '复制译文';
@@ -2411,6 +2738,21 @@ export default defineContentScript({
               copy.textContent = '复制失败';
             }
           });
+          const speakBtn = createSpeakButton(() => res.translation, () => currentTargetLang);
+          Object.assign(speakBtn.style, {
+            display: 'block',
+            marginTop: '8px',
+            padding: '4px 10px',
+            border: '0',
+            borderRadius: '8px',
+            background: 'rgba(120,120,128,0.16)',
+            color: '#1d1d1f',
+            fontSize: '12px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          });
+          host.appendChild(speakBtn);
           host.appendChild(copy);
         }
       } catch (error) {
@@ -2484,8 +2826,8 @@ export default defineContentScript({
       btn.type = 'button';
       btn.id = 'ot-translate-btn';
       btn.textContent = '\u8BD1'; // "译"
-      btn.title = '好翻 \u00B7 \u7FFB\u8BD1\u672C\u9875'; // "好翻 · 翻译本页"
-      btn.setAttribute('aria-label', '翻译当前网页');
+      btn.title = toolbarIdleTitle();
+      btn.setAttribute('aria-label', toolbarIdleLabel());
       Object.assign(btn.style, {
         width: '40px',
         height: '40px',
@@ -2559,15 +2901,18 @@ export default defineContentScript({
       });
       const wasDrag = () => draggable.suppressNextClick();
 
-      // 恢复上次拖拽位置
+      // 恢复上次拖拽位置。异步回调可能晚于工具栏重建（SPA 自愈）：
+      // 应用到「当下」的 #ot-toolbar，而不是闭包里捕获的旧节点。
       void toolbarPosItem
         .getValue()
         .then((pos) => {
-          if (!pos || !document.getElementById('ot-toolbar')) return;
-          bar.style.right = 'auto';
-          bar.style.bottom = 'auto';
-          bar.style.left = `${Math.min(Math.max(0, pos.x), Math.max(0, window.innerWidth - bar.offsetWidth))}px`;
-          bar.style.top = `${Math.min(Math.max(0, pos.y), Math.max(0, window.innerHeight - bar.offsetHeight))}px`;
+          if (!pos) return;
+          const current = document.getElementById('ot-toolbar');
+          if (!current) return;
+          current.style.right = 'auto';
+          current.style.bottom = 'auto';
+          current.style.left = `${Math.min(Math.max(0, pos.x), Math.max(0, window.innerWidth - current.offsetWidth))}px`;
+          current.style.top = `${Math.min(Math.max(0, pos.y), Math.max(0, window.innerHeight - current.offsetHeight))}px`;
         })
         .catch(() => {});
 
@@ -2577,6 +2922,11 @@ export default defineContentScript({
         if (wasDrag()) return;
         if ((event.target as Element | null)?.closest?.('#ot-settings-btn')) return;
         if (busy) {
+          // 取消当前任务并复位交互状态，让下一次点击能立即开始新任务
+          // （「翻译中再点 = 取消，再点 = 重译」的既有语义）。
+          // pageCancelSeq 让被取消任务在任意 await 恢复点自行退出，
+          // 不会与这里手工复位的 busy 竞态出僵尸启动序列。
+          pageCancelSeq = pageRunSeq;
           clearTranslations();
           busy = false;
           setToolbarLoading(false);
@@ -2593,9 +2943,40 @@ export default defineContentScript({
       gear.addEventListener('click', (event) => {
         if (wasDrag()) return;
         event.stopPropagation();
+        // 开关语义：面板已打开时点齿轮 = 关闭（此前只能点 × 关闭）。
+        if (settingsPanel) {
+          closeSettingsPanel();
+          return;
+        }
         const rect = gear.getBoundingClientRect();
-        void openSettingsPanel(rect.left, rect.bottom + 8);
+        void openSettingsPanel(rect.left, rect.bottom + 8, rect.top);
       });
+    }
+
+    // 工具栏空闲态文案随「翻译模式」与「页面是否已有译文」变化：
+    //   无译文 → 翻译本页；已有译文 → 收起全部译文（再点可重新翻译）。
+    // 手动模式下额外标注交互方式，避免点了「译」只看到一行状态而困惑。
+    function toolbarIdleLabel(): string {
+      if (translatedCount > 0) return '收起全部译文';
+      return currentTranslateMode === 'manual'
+        ? '翻译当前网页（手动模式：点击段落或划选文字即可翻译）'
+        : '翻译当前网页';
+    }
+
+    function toolbarIdleTitle(): string {
+      if (translatedCount > 0) return '好翻 · 收起全部译文（再次点击重新翻译）';
+      return currentTranslateMode === 'manual' ? '好翻 · 手动模式（点击段落或划词翻译）' : '好翻 · 翻译本页';
+    }
+
+    function refreshToolbarIdleLabels() {
+      if (busy) return;
+      const bar = document.getElementById('ot-toolbar');
+      bar?.setAttribute('aria-label', toolbarIdleLabel());
+      const btn = document.getElementById('ot-translate-btn');
+      if (btn && btn.getAttribute('aria-busy') !== 'true') {
+        btn.setAttribute('aria-label', toolbarIdleLabel());
+        btn.title = toolbarIdleTitle();
+      }
     }
 
     function setToolbarLoading(loading: boolean) {
@@ -2607,7 +2988,7 @@ export default defineContentScript({
           bar.setAttribute('aria-label', '取消当前翻译');
         } else {
           bar.setAttribute('aria-busy', 'false');
-          bar.setAttribute('aria-label', '翻译当前网页');
+          bar.setAttribute('aria-label', toolbarIdleLabel());
         }
       }
       if (!btn) return;
@@ -2642,7 +3023,7 @@ export default defineContentScript({
         btn.title = '取消当前翻译';
       } else {
         btn.setAttribute('aria-busy', 'false');
-        btn.setAttribute('aria-label', '翻译当前网页');
+        btn.setAttribute('aria-label', toolbarIdleLabel());
         // 注意：不能 removeProperty——inline 样式里的原始 width 也会被一并删除，
         // 导致按钮缩回内容宽度（约 25px），工具条整体变窄（历史隐藏 bug）。
         btn.style.setProperty('width', '40px', 'important');
@@ -2652,7 +3033,7 @@ export default defineContentScript({
         btn.style.setProperty('background', 'linear-gradient(180deg, #2b8cff 0%, #007aff 100%)', 'important');
         btn.style.cursor = 'pointer';
         btn.textContent = '译';
-        btn.title = '好翻 · 翻译本页';
+        btn.title = toolbarIdleTitle();
       }
     }
 

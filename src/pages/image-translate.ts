@@ -66,8 +66,6 @@ if (typeof document !== 'undefined' && typeof location !== 'undefined') {
 
         tools.hidden = false;
         listShell.hidden = false;
-        document.getElementById('result-count')!.textContent = `${segments.length} 处文本`;
-        document.getElementById('list-count')!.textContent = `${segments.length} 条`;
 
         stage.replaceChildren();
         const canvas = document.createElement('div');
@@ -86,31 +84,49 @@ if (typeof document !== 'undefined' && typeof location !== 'undefined') {
         canvas.appendChild(img);
         stage.appendChild(canvas);
 
-        for (const segment of segments) {
+        // 模型返回的区域结构不受本页控制：坐标缺失/非法的段会渲染成 NaN%
+        // （样式被浏览器丢弃，色块错位到左上角），文案缺省会把字面量 "undefined"
+        // 渲染出来。渲染前过滤 + 空值兜底。
+        const validSegments = segments.filter(
+          (s: any) =>
+            s &&
+            [s.x, s.y, s.w, s.h].every((n: unknown) => Number.isFinite(Number(n))) &&
+            typeof (s.translation || s.text) === 'string',
+        );
+
+        for (const segment of validSegments) {
+          const x = Number(segment.x);
+          const y = Number(segment.y);
+          const w = Math.max(0, Math.min(1, Number(segment.w)));
+          const h = Math.max(0, Math.min(1, Number(segment.h)));
+          const boxText = String(segment.translation || segment.text || '');
+          if (!boxText) continue;
           const box = document.createElement('div');
           box.className = 'ot-image-segment';
-          box.style.left = `${segment.x * 100}%`;
-          box.style.top = `${segment.y * 100}%`;
-          box.style.width = `${segment.w * 100}%`;
-          box.style.height = `${segment.h * 100}%`;
-          box.textContent = segment.translation || segment.text;
+          box.style.left = `${x * 100}%`;
+          box.style.top = `${y * 100}%`;
+          box.style.width = `${w * 100}%`;
+          box.style.height = `${h * 100}%`;
+          box.textContent = boxText;
           canvas.appendChild(box);
 
           const item = document.createElement('article');
           item.className = 'ot-image-item';
           const source = document.createElement('div');
           source.className = 'ot-image-source';
-          source.textContent = segment.text;
+          source.textContent = String(segment.text ?? '');
           const translation = document.createElement('div');
           translation.className = 'ot-image-translation';
-          translation.textContent = segment.translation;
+          translation.textContent = String(segment.translation ?? '');
           item.append(source, translation);
           list.appendChild(item);
         }
 
-        if (segments.length === 0) {
+        if (validSegments.length === 0) {
           list.innerHTML = '<div class="ot-image-list-empty">未识别到可翻译文字</div>';
         }
+        document.getElementById('result-count')!.textContent = `${validSegments.length} 处文本`;
+        document.getElementById('list-count')!.textContent = `${validSegments.length} 条`;
 
         toggle.addEventListener('change', () => {
           canvas.querySelectorAll('.ot-image-segment').forEach((element) => {

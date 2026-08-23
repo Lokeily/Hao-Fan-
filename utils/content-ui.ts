@@ -143,12 +143,15 @@ export function createTranslationNode(
     editBtn.title = '编辑译文并学习术语';
     editBtn.setAttribute('aria-label', '编辑译文');
     editBtn.textContent = '✎';
+    // 提交前净化：粘贴富文本会混入换行/连续空白，直接进入术语表会污染
+    // 「每行 源词=译文」的结构并在每批提示词里注入垃圾 token。
+    const sanitize = (raw: string) => raw.replace(/\s+/g, ' ').trim();
     const commit = () => {
       if (text.getAttribute('contenteditable') !== 'true') return;
       text.setAttribute('contenteditable', 'false');
       const next = text.textContent ?? '';
       const prev = host.dataset.translation ?? translation;
-      if (next.trim() && next !== prev) {
+      if (sanitize(next) && next !== prev) {
         host.dataset.translation = next;
         host.dataset.edited = 'true';
         options.onEdit?.(next);
@@ -156,6 +159,25 @@ export function createTranslationNode(
         text.textContent = host.dataset.translation ?? translation;
       }
     };
+    // 粘贴一律按纯文本插入：阻止富文本（<div>/<b>/<img> 等）节点进入编辑区。
+    text.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const clipboard = (e as ClipboardEvent).clipboardData;
+      const plain = (clipboard ? clipboard.getData('text/plain') : '').slice(0, 500);
+      if (!plain) return;
+      try {
+        if (!document.execCommand('insertText', false, plain)) throw new Error('unsupported');
+      } catch {
+        // execCommand 不可用时的兜底：在光标处直接插入文本节点
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const r = sel.getRangeAt(0);
+          r.deleteContents();
+          r.insertNode(document.createTextNode(plain));
+          r.collapse(false);
+        }
+      }
+    });
     editBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -302,6 +324,37 @@ export function createNoticeHost(
   dialog.append(heading, body, actions);
   backdrop.appendChild(dialog);
   shadow.append(style, backdrop);
+  // 点击遮罩空白处关闭：与完整设置面板的交互保持一致。
+  backdrop.addEventListener('pointerdown', (event) => {
+    if (event.target === backdrop) onAcknowledge();
+  });
+  // 键盘支持：Esc = 知道了；Enter = 主操作（有则）否则知道了。
+  const onKey = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      onAcknowledge();
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      if (action) action.onAction();
+      else onAcknowledge();
+    }
+  };
+  document.addEventListener('keydown', onKey, true);
+  // 关闭时移除键盘监听并把焦点还给打开弹窗前的元素（aria-modal 的承诺）。
+  const previousFocus =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const originalRemove = host.remove.bind(host);
+  host.remove = () => {
+    document.removeEventListener('keydown', onKey, true);
+    try {
+      previousFocus?.focus({ preventScroll: true });
+    } catch {
+      /* 宿主元素可能已被页面移除 */
+    }
+    originalRemove();
+  };
   (primary ?? acknowledge).focus({ preventScroll: true });
   return host;
 }
@@ -342,6 +395,7 @@ export function createSelectionUiStyle(): HTMLStyleElement {
     .actions { display: flex; justify-content: flex-end; padding: 0 10px 10px; }
     .action { min-height: 32px; padding: 0 10px; border: 1px solid #dadce0; border-radius: 6px; background: transparent; color: #1a73e8; cursor: pointer; font-weight: 600; }
     .action:hover { background: rgba(26, 115, 232, .07); }
+    .skip-hint { margin: -4px 12px 8px; color: #9da7b3; font-size: 11px; line-height: 1.5; }
     @media (prefers-color-scheme: dark) {
       .panel { border-color: #30363d; background: #161b22; color: #f0f6fc; }
       .head { border-color: #30363d; }
@@ -355,6 +409,9 @@ export function createSelectionUiStyle(): HTMLStyleElement {
 }
 
 
+// ===== 译文朗读（TTS）按钮复用 utils/speech.ts 的 createSpeakButton =====
+import { createSpeakButton } from './speech.ts';
+
 // ===== 全局深浅色主题（不透明配色，保证任何网页上都可读） =====
 // 注意：浮层宿主元素带 all:initial !important 防站点样式，shadow 内的 :host
 // 规则会被内联样式覆盖——因此背景/文字色必须由 JS 直接内联设置。
@@ -366,8 +423,23 @@ export interface ThemeColors {
   muted: string;
 }
 
+export type ThemeMode = 'auto' | 'light' | 'dark';
+let themeOverride: ThemeMode = 'auto';
+
+/** 由内容脚本在配置加载/变化时调用，控制后续新建浮层的深浅色。 */
+export function setThemeOverride(mode: ThemeMode): void {
+  themeOverride = mode === 'light' || mode === 'dark' ? mode : 'auto';
+}
+
 export function themeColors(): ThemeColors {
-  const dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  // 主题手动覆盖：用户可在设置里强制浅色 / 深色（默认跟随系统）。
+  // 新建的浮层立即生效；已打开的浮层在下次创建时应用（可接受的取舍）。
+  const dark =
+    themeOverride === 'dark'
+      ? true
+      : themeOverride === 'light'
+        ? false
+        : (window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false);
   return dark
     ? {
         surface: '#1c1c1e',
@@ -437,9 +509,14 @@ export function makeDraggable(
       host.style.transition = '';
       window.removeEventListener('pointermove', onMove, true);
       window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onUp, true);
     };
     window.addEventListener('pointermove', onMove, true);
     window.addEventListener('pointerup', onUp, true);
+    // 触屏上浏览器接管手势（滚动）会派发 pointercancel 而非 pointerup：
+    // 不监听的话 dragging 永久为 true、两个 window 级监听不卸载，
+    // 之后鼠标在页面任意移动设置面板都会持续跟随。
+    window.addEventListener('pointercancel', onUp, true);
   });
   return {
     suppressNextClick: () => {
@@ -455,6 +532,7 @@ export interface SettingsPanelOptions {
   languages: string[];
   providers: { id: string; name: string; needsKey: boolean }[];
   targetLang: string;
+  translateMode: 'auto' | 'manual';
   provider: string;
   sitePaused: boolean;
   siteHost: string;
@@ -465,6 +543,7 @@ export interface SettingsPanelOptions {
   onHoverToggle: (enabled: boolean) => void;
   onInputToggle: (enabled: boolean) => void;
   onTargetLang: (value: string) => void;
+  onTranslateMode: (value: 'auto' | 'manual') => void;
   onProvider: (value: string) => void;
   onSiteToggle: (paused: boolean) => void;
   onOpenFullSettings: () => void;
@@ -478,7 +557,7 @@ export interface SettingsPanel {
     patch: Partial<
       Pick<
         SettingsPanelOptions,
-        'targetLang' | 'provider' | 'sitePaused' | 'autoTranslate' | 'hoverTranslate' | 'inputTranslate'
+        'targetLang' | 'provider' | 'translateMode' | 'sitePaused' | 'autoTranslate' | 'hoverTranslate' | 'inputTranslate'
       >
     >,
   ) => void;
@@ -674,7 +753,25 @@ export function createSettingsPanel(opts: SettingsPanelOptions): SettingsPanel {
     opts.onProvider(provSel.value);
   });
   provRow.append(provLabel, provSel);
-  translateGroup.append(tTitle, langRow, provRow);
+  const modeRow = document.createElement('div');
+  modeRow.className = 'row';
+  const modeLabel = document.createElement('span');
+  modeLabel.className = 'row-label';
+  modeLabel.textContent = '翻译模式';
+  const modeSel = document.createElement('select');
+  modeSel.setAttribute('aria-label', '翻译模式');
+  modeSel.append(
+    new Option('自动翻译整页', 'auto'),
+    new Option('手动点击 / 划词', 'manual'),
+  );
+  modeSel.value = opts.translateMode;
+  modeSel.title = modeSel.options[modeSel.selectedIndex]?.textContent || '';
+  modeSel.addEventListener('change', () => {
+    modeSel.title = modeSel.options[modeSel.selectedIndex]?.textContent || '';
+    opts.onTranslateMode(modeSel.value === 'manual' ? 'manual' : 'auto');
+  });
+  modeRow.append(modeLabel, modeSel);
+  translateGroup.append(tTitle, langRow, provRow, modeRow);
 
   // 分组：开关（iOS 风格）
   const makeSwitchRow = (
@@ -742,9 +839,15 @@ export function createSettingsPanel(opts: SettingsPanelOptions): SettingsPanel {
   const update: SettingsPanel['update'] = (patch) => {
     if (patch.targetLang !== undefined && langSel.value !== patch.targetLang) {
       langSel.value = patch.targetLang;
+      langSel.title = langSel.value;
     }
     if (patch.provider !== undefined && provSel.value !== patch.provider) {
       provSel.value = patch.provider;
+      provTitle();
+    }
+    if (patch.translateMode !== undefined && modeSel.value !== patch.translateMode) {
+      modeSel.value = patch.translateMode;
+      modeSel.title = modeSel.options[modeSel.selectedIndex]?.textContent || '';
     }
     const syncSwitch = (checked: boolean | undefined, ariaLabel: string) => {
       if (checked === undefined) return;
@@ -764,7 +867,12 @@ export function createSettingsPanel(opts: SettingsPanelOptions): SettingsPanel {
 export function createHoverBubble(
   source: string,
   onPinnedChange: (pinned: boolean) => void,
-): { host: HTMLElement; setTranslation: (t: string) => void; setSource: (s: string) => void } {
+  options?: { getTargetLang?: () => string },
+): {
+  host: HTMLElement;
+  setTranslation: (t: string, opts?: { localSkipped?: boolean }) => void;
+  setSource: (s: string) => void;
+} {
   const host = document.createElement('div');
   host.id = 'ot-hover-bubble';
   host.dataset.haofanUi = 'true';
@@ -826,13 +934,40 @@ export function createHoverBubble(
     }
     .pin:hover { background: rgba(60,64,67,0.1); }
     .pin[data-pinned="true"] { color: #007aff; }
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      padding: 0 12px 10px;
+    }
+    .copy {
+      border: 0;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: transparent;
+      color: #007aff;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .copy:hover { background: rgba(0, 122, 255, 0.08); }
     @media (prefers-color-scheme: dark) {
       .src { color: #8e8e93; }
       .dst { color: #f5f5f7; }
       .loading { color: #8e8e93; }
       .pin { color: #8e8e93; }
       .pin:hover { background: rgba(255,255,255,0.1); }
+      .pin[data-pinned="true"] { color: #0a84ff; }
+    .copy { color: #0a84ff; }
+    .copy:hover { background: rgba(10, 132, 255, 0.14); }
     }
+    .skip-hint {
+      padding: 0 12px;
+      color: #8e8e93;
+      font-size: 10px;
+      line-height: 1.4;
+    }
+    .actions + .skip-hint { padding-bottom: 6px; }
   `;
   const src = document.createElement('div');
   src.className = 'src';
@@ -841,6 +976,43 @@ export function createHoverBubble(
   dst.className = 'dst';
   dst.textContent = '翻译中…';
   dst.classList.add('loading');
+  // 「原文已是目标语言」提示：单条路径命中本地跳过时显示，
+  // 消除「译文和原文一样，是不是坏了」的困惑。
+  const skipHint = document.createElement('div');
+  skipHint.className = 'skip-hint';
+  skipHint.textContent = '原文已是目标语言，未翻译';
+  skipHint.hidden = true;
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  // 朗读：与划词面板/输入框结果同一交互（compact 图标形态适配小气泡）。
+  const speakBtn = createSpeakButton(
+    () => dst.textContent || '',
+    () => options?.getTargetLang?.() || '',
+    { compact: true },
+  );
+  speakBtn.className = 'copy';
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = 'copy';
+  copy.textContent = '复制';
+  copy.title = '复制译文';
+  copy.setAttribute('aria-label', '复制译文');
+  copy.addEventListener('click', async () => {
+    const text = dst.textContent || '';
+    // 加载占位不复制，避免把「翻译中…」存进剪贴板。
+    if (!text || text === '翻译中…') return;
+    try {
+      await navigator.clipboard.writeText(text);
+      copy.textContent = '已复制';
+    } catch {
+      copy.textContent = '复制失败';
+    }
+    setTimeout(() => {
+      if (copy.isConnected) copy.textContent = '复制';
+    }, 1200);
+  });
+  actions.appendChild(speakBtn);
+  actions.appendChild(copy);
   const pin = document.createElement('button');
   pin.type = 'button';
   pin.className = 'pin';
@@ -854,13 +1026,14 @@ export function createHoverBubble(
     pin.title = pinned ? '取消固定' : '固定译文';
     onPinnedChange(pinned);
   });
-  shadow.append(style, src, dst, pin);
+  shadow.append(style, src, dst, skipHint, actions, pin);
 
   return {
     host,
-    setTranslation: (t) => {
+    setTranslation: (t, opts?: { localSkipped?: boolean }) => {
       dst.textContent = t;
       dst.classList.remove('loading');
+      skipHint.hidden = !opts?.localSkipped;
     },
     setSource: (s2) => {
       src.textContent = s2;
@@ -893,7 +1066,8 @@ export function createInputTranslateButton(
   btn.style.setProperty('align-items', 'center', 'important');
   btn.style.setProperty('justify-content', 'center', 'important');
   btn.style.setProperty('cursor', 'pointer', 'important');
-  btn.style.setProperty('boxShadow', '0 3px 10px rgba(0,122,255,0.35)', 'important');
+  // setProperty 只认连字符形式的 CSS 属性名；驼峰写法会被静默忽略（阴影从未生效）。
+  btn.style.setProperty('box-shadow', '0 3px 10px rgba(0,122,255,0.35)', 'important');
   btn.style.setProperty('font-family', '-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif', 'important');
   btn.addEventListener('click', (e) => {
     e.preventDefault();

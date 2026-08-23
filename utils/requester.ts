@@ -136,6 +136,23 @@ export async function fetchWithTimeout(
   }
 }
 
+// 响应体读取看门狗：fetch 在响应头到达后即 resolve，若服务器此后停滞不发 body，
+// res.json() 会永久挂起且不受 fetch 超时保护。这里用独立计时器兜底，超时按
+// RequestTimeoutError 处理（可重试）。
+export async function readBodyWithTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      p,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new RequestTimeoutError(ms)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export interface PostJsonOpts {
   timeout?: number; // 单次超时（毫秒）
   retries?: number; // 5xx / 网络错误的重试次数
@@ -175,7 +192,7 @@ export async function postJson(
           retryAfterMs(res.headers.get('retry-after')),
         );
       }
-      const data = await res.json();
+      const data = await readBodyWithTimeout(res.json(), timeout);
       if (data?.error) {
         throw new Error(`请求失败：${data.error?.message || JSON.stringify(data.error)}`);
       }
@@ -221,27 +238,54 @@ export async function* streamChat(
   const safeHeaders: Record<string, string> = {};
   for (const k of Object.keys(headers)) safeHeaders[k] = toLatin1(headers[k]);
 
-  const res = await fetchWithTimeout(
-    url,
-    { method: 'POST', headers: safeHeaders, body, signal: opts.signal },
-    timeout,
-  );
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new HttpRequestError(res.status, detail, retryAfterMs(res.headers.get('retry-after')));
-  }
-  if (!res.body || typeof res.body.getReader !== 'function') {
-    // 极端环境下 body 不可读：退化为一次性 JSON。
-    const data = await res.json();
-    yield contentFromChunk(data) ?? '';
-    return;
-  }
+  // 独立 AbortController：超时保护必须覆盖到 body 读取阶段（SSE 流的总时长
+  // 可能超过单次超时，因此用「空闲超时」——每收到一块数据即续命），
+  // 同时保持与外部 signal 的联动（用户取消 / 任务取消）。
+  const ctrl = new AbortController();
+  const externalSignal = opts.signal;
+  const abortFromExternal = () => ctrl.abort(externalSignal?.reason);
+  if (externalSignal?.aborted) abortFromExternal();
+  else externalSignal?.addEventListener('abort', abortFromExternal, { once: true });
 
-  const reader = res.body.getReader();
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  const timeoutError = new RequestTimeoutError(timeout);
+  const armIdle = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => ctrl.abort(timeoutError), timeout);
+  };
+  const disarmIdle = () => {
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+      idleTimer = null;
+    }
+  };
+
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   const decoder = new TextDecoder();
   let buffer = '';
   try {
+    armIdle();
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: safeHeaders,
+      body,
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new HttpRequestError(res.status, detail, retryAfterMs(res.headers.get('retry-after')));
+    }
+    if (!res.body || typeof res.body.getReader !== 'function') {
+      // 极端环境下 body 不可读：退化为一次性 JSON。
+      const data = await res.json();
+      yield contentFromChunk(data) ?? '';
+      return;
+    }
+
+    reader = res.body.getReader();
     while (true) {
+      // 每次读取前重置空闲计时：服务器停滞超过 timeout 未吐数据则中止，避免永久挂起。
+      armIdle();
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
@@ -253,16 +297,33 @@ export async function* streamChat(
         if (delta !== null) yield delta;
       }
     }
+    // 最终 flush：跨 chunk 截断的多字节字符（如中文/emoji）在此补齐。
+    buffer += decoder.decode();
     const tail = buffer.replace(/\r$/, '');
     if (tail.trim()) {
       const delta = parseSseLine(tail, opts.onMeta);
       if (delta !== null) yield delta;
     }
+  } catch (error) {
+    if (externalSignal?.aborted) throw externalSignal.reason ?? error;
+    if (ctrl.signal.aborted) throw ctrl.signal.reason ?? timeoutError;
+    throw error;
   } finally {
-    try {
-      reader.releaseLock();
-    } catch {
-      /* 已结束 */
+    disarmIdle();
+    externalSignal?.removeEventListener('abort', abortFromExternal);
+    if (reader) {
+      // 先 cancel 再释放锁：提前终止（failover 切换 / 消费方 break）时真正断开底层连接，
+      // 而不是留下继续下载的僵尸流。
+      try {
+        await reader.cancel();
+      } catch {
+        /* 流已结束 */
+      }
+      try {
+        reader.releaseLock();
+      } catch {
+        /* 已释放 */
+      }
     }
   }
 }
@@ -278,13 +339,9 @@ function parseSseLine(line: string, onMeta?: (meta: StreamMeta) => void): string
   } catch {
     return null;
   }
-  // 增量：delta.content
-  const delta = json?.choices?.[0]?.delta?.content;
-  if (typeof delta === 'string' && delta.length > 0) return delta;
-  // 兜底：非流式 message.content 一次性给出
-  const messageContent = json?.choices?.[0]?.message?.content;
-  if (typeof messageContent === 'string' && messageContent.length > 0) return messageContent;
-  // 用量与结束原因
+  // 先记录 finish_reason / usage 再返回内容：部分端点会把 content 与
+  // finish_reason（甚至非流式兜底的完整 message.content + usage）放在同一个
+  // JSON 里返回，若内容分支提前 return，截断信号与用量统计都会丢失。
   const finish = json?.choices?.[0]?.finish_reason;
   if (typeof finish === 'string' && onMeta) {
     onMeta({ finishReason: finish });
@@ -296,6 +353,12 @@ function parseSseLine(line: string, onMeta?: (meta: StreamMeta) => void): string
       completionTokens: Number(usage.completion_tokens) || 0,
     });
   }
+  // 增量：delta.content
+  const delta = json?.choices?.[0]?.delta?.content;
+  if (typeof delta === 'string' && delta.length > 0) return delta;
+  // 兜底：非流式 message.content 一次性给出
+  const messageContent = json?.choices?.[0]?.message?.content;
+  if (typeof messageContent === 'string' && messageContent.length > 0) return messageContent;
   return null;
 }
 

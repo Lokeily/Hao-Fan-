@@ -6,6 +6,12 @@ import { getProviderApiKey, normalizeConfig } from '../../utils/config.ts';
 import { isSiteDisabled, siteKeyOf, withSiteDisabled } from '../../utils/site-policy.ts';
 import { EMPTY_USAGE_TOTALS, type UsageTotals } from '../../utils/usage.ts';
 import { MAX_TEXT_CHARS } from '../../utils/messages.ts';
+import {
+  addHistoryEntry,
+  clearHistory,
+  getHistory,
+  type HistoryEntry,
+} from '../../utils/history-store.ts';
 import '../../styles/options.css';
 
 if (typeof document !== 'undefined' && typeof location !== 'undefined') {
@@ -37,7 +43,16 @@ if (typeof document !== 'undefined' && typeof location !== 'undefined') {
 
       <div class="ot-tabs" role="tablist" aria-label="功能切换">
         <button type="button" id="tab-translate" class="ot-tab active" role="tab" aria-selected="true" aria-controls="panel-translate" tabindex="0" data-tab="translate">翻译</button>
+        <button type="button" id="tab-history" class="ot-tab" role="tab" aria-selected="false" aria-controls="panel-history" tabindex="-1" data-tab="history">历史</button>
         <button type="button" id="tab-settings" class="ot-tab" role="tab" aria-selected="false" aria-controls="panel-settings" tabindex="-1" data-tab="settings">设置</button>
+      </div>
+
+      <div class="ot-panel hidden" id="panel-history" role="tabpanel" aria-labelledby="tab-history">
+        <div class="ot-history-toolbar">
+          <input id="ot-history-search" type="search" placeholder="搜索原文或译文…" aria-label="搜索翻译历史" />
+          <button id="ot-history-clear" type="button" title="清空全部历史">清空</button>
+        </div>
+        <div id="ot-history-list" class="ot-history-list" role="list"></div>
       </div>
 
       <div class="ot-panel" id="panel-translate" role="tabpanel" aria-labelledby="tab-translate">
@@ -230,6 +245,113 @@ if (typeof document !== 'undefined' && typeof location !== 'undefined') {
 
   void loadSitePolicy();
 
+  // ===== 翻译历史 =====
+  // 记录「用户主动发起」的单条翻译（划词 / 输入框 / 弹窗），支持搜索、点击回填、清空。
+  const historyList = document.getElementById('ot-history-list') as HTMLElement;
+  const historySearch = document.getElementById('ot-history-search') as HTMLInputElement;
+  const historyClearBtn = document.getElementById('ot-history-clear') as HTMLButtonElement;
+  let historyEntries: HistoryEntry[] = [];
+
+  const SOURCE_LABEL: Record<HistoryEntry['source'], string> = {
+    selection: '划词',
+    input: '输入框',
+    popup: '弹窗',
+  };
+
+  function formatHistoryTime(ts: number): string {
+    const date = new Date(ts);
+    const today = new Date();
+    const sameDay =
+      date.getFullYear() === today.getFullYear() &&
+      date.getMonth() === today.getMonth() &&
+      date.getDate() === today.getDate();
+    const hm = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    return sameDay ? `今天 ${hm}` : `${date.getMonth() + 1}/${date.getDate()} ${hm}`;
+  }
+
+  function renderHistory() {
+    const query = historySearch.value.trim().toLowerCase();
+    const items = query
+      ? historyEntries.filter(
+          (e) =>
+            e.text.toLowerCase().includes(query) || e.translation.toLowerCase().includes(query),
+        )
+      : historyEntries;
+    historyList.replaceChildren();
+    if (items.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'ot-history-empty';
+      empty.textContent = query ? '没有匹配的历史记录' : '还没有翻译记录：划词、输入框或此处翻译的文本会出现在这里';
+      historyList.appendChild(empty);
+      return;
+    }
+    for (const entry of items.slice(0, 100)) {
+      const item = document.createElement('article');
+      item.className = 'ot-history-item';
+      item.setAttribute('role', 'listitem');
+      item.title = '点击回填到文本翻译';
+      const meta = document.createElement('div');
+      meta.className = 'ot-history-meta';
+      const badge = document.createElement('span');
+      badge.className = 'ot-history-badge';
+      badge.textContent = SOURCE_LABEL[entry.source] || entry.source;
+      const time = document.createElement('time');
+      time.textContent = formatHistoryTime(entry.ts);
+      meta.append(badge, time);
+      const sourceLine = document.createElement('div');
+      sourceLine.className = 'ot-history-source';
+      sourceLine.textContent = entry.text.length > 120 ? `${entry.text.slice(0, 120)}…` : entry.text;
+      const resultLine = document.createElement('div');
+      resultLine.className = 'ot-history-translation';
+      resultLine.textContent =
+        entry.translation.length > 160 ? `${entry.translation.slice(0, 160)}…` : entry.translation;
+      item.append(meta, sourceLine, resultLine);
+      item.addEventListener('click', () => {
+        input.value = entry.text;
+        updateInputCount();
+        activateTab(tabs[0]!);
+        input.focus({ preventScroll: true });
+        setOutput('已回填历史记录，可直接修改后翻译。', 'neutral');
+      });
+      historyList.appendChild(item);
+    }
+  }
+
+  async function loadHistory() {
+    try {
+      historyEntries = await getHistory();
+    } catch {
+      historyEntries = [];
+    }
+    renderHistory();
+  }
+
+  historySearch.addEventListener('input', renderHistory);
+  historyClearBtn.addEventListener('click', async () => {
+    if (!historyEntries.length) return;
+    historyClearBtn.disabled = true;
+    try {
+      await clearHistory();
+      historyEntries = [];
+      renderHistory();
+    } finally {
+      historyClearBtn.disabled = false;
+    }
+  });
+  // 切到历史标签页时刷新（其它入口可能刚写入了新记录）。
+  tabs[1]?.addEventListener('click', () => void loadHistory());
+  void loadHistory();
+
+  // 弹窗可能与网页内快速/完整设置同时打开。站点暂停状态也订阅 storage，
+  // 任一入口修改后，弹窗开关与“翻译网页”按钮立即反映最新状态。
+  try {
+    disabledSitesItem.watch((sites) => {
+      if (activePageUrl) renderSitePolicy(isSiteDisabled(sites, activePageUrl));
+    });
+  } catch {
+    /* storage 监听不可用时保留当前弹窗状态 */
+  }
+
   function renderUsage(stats: UsageTotals) {
     document.getElementById('ot-saved')!.textContent = numberFormat.format(
       stats.estimatedTokensSaved,
@@ -287,11 +409,22 @@ if (typeof document !== 'undefined' && typeof location !== 'undefined') {
       const res = (await browser.runtime.sendMessage({
         type: 'TRANSLATE_ONE',
         payload: { text },
-      })) as { ok?: boolean; translation?: string; error?: string } | undefined;
+      })) as
+        | { ok?: boolean; translation?: string; error?: string; localSkipped?: boolean }
+        | undefined;
+      // 空译文单独提示：静默输出空串会让用户分不清「成功」还是「坏了」。
+      // 本地跳过（原文已是目标语言）同样说明，避免「怎么没反应」的困惑。
+      const skipNote = res?.localSkipped === true ? '\n（原文已是目标语言，未翻译）' : '';
       setOutput(
-        res?.ok ? res.translation || '' : res?.error || '翻译失败',
+        res?.ok
+          ? res.translation || '（译文为空：该引擎未返回内容，可尝试换模型或重试）'
+          : res?.error || '翻译失败',
         res?.ok ? 'neutral' : 'error',
       );
+      if (skipNote) out.appendChild(document.createTextNode(skipNote));
+      if (res?.ok && res.translation && res.localSkipped !== true) {
+        void addHistoryEntry({ text, translation: res.translation, source: 'popup' });
+      }
       if (res?.ok) await loadUsage();
     } catch (error) {
       setOutput(error instanceof Error ? error.message : '翻译失败', 'error');
@@ -325,7 +458,21 @@ if (typeof document !== 'undefined' && typeof location !== 'undefined') {
       } catch {
         /* 受限页面注入会失败，下面 sendMessage 会给出明确提示 */
       }
-      await browser.tabs.sendMessage(tab.id, { type: 'TRANSLATE_PAGE' });
+      // 内容脚本会回传真实结果：手动模式 / 已暂停不再是误导性的「已发送」。
+      const res = (await browser.tabs.sendMessage(tab.id, {
+        type: 'TRANSLATE_PAGE',
+      })) as { ok?: boolean; reason?: string } | undefined;
+      if (res && res.ok === false) {
+        if (res.reason === 'manual') {
+          setOutput(
+            '当前网页是「手动点击」翻译模式：在网页中点击段落或划选文字即可翻译；要整页翻译，请在设置里把翻译模式切回「自动」。',
+            'neutral',
+          );
+        } else {
+          setOutput('该网站的翻译已暂停：打开上方「当前网站翻译」开关后即可重试。', 'error');
+        }
+        return;
+      }
       setOutput('已发送翻译指令，译文将显示在原文下方。', 'success');
     } catch (e: any) {
       setOutput(

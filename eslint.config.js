@@ -21,7 +21,7 @@ export default tseslint.config(
   },
   {
     // Node 脚本与测试。
-    files: ['scripts/**/*.mjs', 'tests/*.mjs', 'tests/browser/server.mjs', '*.config.*'],
+    files: ['scripts/**/*.mjs', 'tests/*.mjs', 'tests/browser/*.mjs', '*.config.*'],
     languageOptions: { globals: globals.node },
   },
   js.configs.recommended,

@@ -65,7 +65,14 @@ export function maskIdentifiers(text: string): MaskedText {
   // 两遍都只扫描「当前文本」，不会命中已经生成的占位符（PUA 字符），故顺序安全。
   let masked = text.replace(IDENT_RE, push);
   masked = masked.replace(BRAND_RE, push);
-  const restore = (translation: string): string =>
-    translation.replace(new RegExp(OPEN + '(\\d+)' + CLOSE, 'g'), (_full, i) => map[Number(i)] ?? '');
+  const restore = (translation: string): string => {
+    const restored = translation.replace(new RegExp(OPEN + '(\\d+)' + CLOSE, 'g'), (_full, i) =>
+      map[Number(i)] ?? '',
+    );
+    // 兜底清理：模型可能漏抄占位符（只有 OPEN 没有 CLOSE）、夹带空格或幻觉出
+    // 索引外的占位符，这些情况正则不匹配，私有区字符会直通最终译文显示为乱码。
+    // 统一剔除残留 PUA 字符，宁可丢一个标识符也不显示豆腐块。
+    return restored.replace(/[\uE000-\uF8FF]/g, '');
+  };
   return { masked, restore, count: map.length };
 }

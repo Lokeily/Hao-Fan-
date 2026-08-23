@@ -28,9 +28,10 @@ globalThis.browser = {
   },
 };
 
-const { translateBatchDetailed, translateOneDetailed, translateOneStream } =
+const { translateBatchDetailed, translateOneDetailed, translateOneStream, auditTranslation } =
   await import('../utils/translator.ts');
 const { cleanSecret } = await import('../utils/requester.ts');
+const { maskIdentifiers } = await import('../utils/mask.ts');
 
 const openServers = [];
 
@@ -515,9 +516,127 @@ test('批量坏 JSON 恢复受 MAX_BATCH_RECOVERY_REQUESTS 约束（不无限拆
   await server.close();
 });
 
-test.after(async () => {
-  for (const server of openServers) {
-    server.closeAllConnections?.();
-    await new Promise((resolve) => server.close(() => resolve()));
-  }
+// ===== 回归测试：锁定 2026-08-23 修复批次 =====
+
+test('流式截断（finish_reason=length）标记 issue 且不写缓存', async () => {
+  const server = await startMockServer();
+  let calls = 0;
+  server.setHandler(() => {
+    calls++;
+    return {
+      __sse: [
+        { choices: [{ delta: { content: '半截译文' } }] },
+        { choices: [{ delta: {}, finish_reason: 'length' }] },
+      ],
+    };
+  });
+  const cfg = cfgFor(server.port);
+  const first = await translateOneStream(cfg, 'Truncation probe text', { onDelta: () => {} });
+  assert.equal(first.translation, '半截译文');
+  assert.ok(
+    Array.isArray(first.issue) && first.issue.some((t) => /截断/.test(t)),
+    '截断应通过 issue 告知用户，而不是静默接受残句',
+  );
+  // 不写缓存：同样的文本第二次应重新发请求（否则半截译文污染 30 天缓存）
+  await translateOneStream(cfg, 'Truncation probe text', { onDelta: () => {} });
+  assert.equal(calls, 2, '截断结果不应进入缓存');
+  await server.close();
 });
+
+test('SSE 同一 chunk 携带 content+finish_reason+usage 时 meta 不丢失', async () => {
+  const server = await startMockServer();
+  server.setHandler(() => ({
+    __sse: [
+      {
+        choices: [{ delta: { content: '一次给出' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 11, completion_tokens: 6 },
+      },
+    ],
+  }));
+  const result = await translateOneStream(cfgFor(server.port), 'Meta probe text', {
+    onDelta: () => {},
+  });
+  assert.equal(result.translation, '一次给出');
+  assert.equal(result.stats.promptTokens, 11, '内容分支提前 return 曾把 usage 一并丢掉');
+  assert.equal(result.stats.completionTokens, 6);
+  await server.close();
+});
+
+test('质量自检归一化：等价数字形态不误报', () => {
+  // 句尾标点被中文全角替换："in 2024." 的 token 是 "2024."，译文是 "2024。"
+  assert.deepEqual(auditTranslation('Released in 2024.', '于2024。发布'), []);
+  // 千分位差异："1,000" ↔ "1000"
+  assert.deepEqual(auditTranslation('Sold 1,000 units today', '今天售出1000台'), []);
+  // 全角数字/百分号："50%" ↔ "50％"
+  assert.deepEqual(auditTranslation('about 50% users agree', '约50％的用户同意'), []);
+  // 日期改写："2024-01-02" ↔ "2024年1月2日"（正则会拆成 2024/01/02 三段）
+  assert.deepEqual(auditTranslation('Shipped on 2024-01-02 publicly', '2024年1月2日正式发布'), []);
+});
+
+test('质量自检归一化不放过真缺失', () => {
+  const missing = auditTranslation('Version 9.9 is at https://example.com/x now', '版本说明见官网');
+  assert.ok(missing.some((t) => t.includes('9.9')), '数字真缺失仍应标记');
+  assert.ok(missing.some((t) => t.startsWith('https://')), 'URL 真缺失仍应标记');
+});
+
+test('遮罩还原对模型漏抄/幻觉的占位符兜底清理（PUA 不泄漏到界面）', () => {
+  const OPEN = String.fromCharCode(0xf000);
+  const CLOSE = String.fromCharCode(0xf001);
+  const m = maskIdentifiers('Use useState hook here');
+  assert.equal(m.count, 1, 'useState 应被遮罩');
+  // 正常还原
+  assert.equal(m.restore(`用 ${OPEN}0${CLOSE} 钩子`), '用 useState 钩子');
+  // 模型漏抄 CLOSE：占位符整体剔除，不留私有区字符
+  const leaky1 = m.restore(`坏${OPEN}0 占位`);
+  assert.ok(!/[\uE000-\uF8FF]/.test(leaky1), `漏抄 CLOSE 不应残留 PUA 字符：${leaky1}`);
+  // 幻觉索引
+  const leaky2 = m.restore(`幻觉 ${OPEN}99${CLOSE} 结束`);
+  assert.ok(!/[\uE000-\uF8FF]/.test(leaky2), `幻觉索引不应残留 PUA 字符：${leaky2}`);
+});
+
+test('顶层单条目纯文本回退时还原占位符（PUA 不入译文与缓存）', async () => {
+  const server = await startMockServer();
+  const OPEN = String.fromCharCode(0xf000);
+  const CLOSE = String.fromCharCode(0xf001);
+  server.setHandler(() => {
+    // 单条目批次 + 模型不遵循 JSON 协议直接回纯文本（带占位符）
+    return { choices: [{ message: { content: `使用 ${OPEN}0${CLOSE} 状态钩子` } }], usage: {} };
+  });
+  const result = await translateBatchDetailed(cfgFor(server.port), ['Use useState here']);
+  assert.equal(result.translations[0], '使用 useState 状态钩子', '回退路径必须做占位符还原');
+  assert.ok(!/[\uE000-\uF8FF]/.test(result.translations[0]), '不允许残留私有区字符');
+  await server.close();
+});
+
+test('Google 批量翻译单条失败不拖垮整批', async () => {
+  const server = await startMockServer();
+  server.setHandler((req) => {
+    if (req.url.includes(encodeURIComponent('Bad one'))) return 500; // 这条失败
+    return [[['这条成功', 'x', null, null, 10]], null, 'en'];
+  });
+  const result = await translateBatchDetailed(cfgFor(server.port, { provider: 'google' }), [
+    'Bad one',
+    'Good two',
+  ]);
+  assert.equal(result.translations[0], 'Bad one', '失败条目保留原文（不写缓存、可重试）');
+  assert.equal(result.translations[1], '这条成功', '其余条目正常翻译');
+  await server.close();
+});
+
+test('句子本地跳过保留原文大小写（norm 只作缓存键不作输出）', async () => {
+  const server = await startMockServer();
+  server.setHandler((req) => {
+    const items = req.body.messages[1].content.match(/"id":"t\d+","text":"[^"]*"/g);
+    assert.equal(items?.length, 1, '跳过的句子不应送进请求');
+    return batchOk(['俄语译文']);
+  });
+  const cfg = cfgFor(server.port, { targetLang: 'English', sentenceCache: true });
+  // 构造「整段不被判为目标语言（西里尔占比高）、但首句是拉丁文本」的混合段：
+  // 首句命中本地跳过。修复前输出的是小写化后的缓存键（"hi friend."），
+  // 修复后必须保留原始大小写。
+  const result = await translateOneDetailed(cfg, 'HI FRIEND. Привет мир мой дорогой друг.');
+  assert.ok(result.translation.startsWith('HI FRIEND.'), `跳过句不应被小写化：${result.translation}`);
+  await server.close();
+});
+
+

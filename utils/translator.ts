@@ -2,7 +2,14 @@ import { getProviderApiKey, type AppConfig } from './config.ts';
 import { getProvider } from './providers.ts';
 import { langCode } from './languages.ts';
 import { ensureCacheLoaded, getCachedSync, setCachedSync } from './cache.ts';
-import { fetchWithTimeout, postJson, cleanSecret, streamChat, type StreamMeta } from './requester.ts';
+import {
+  fetchWithTimeout,
+  postJson,
+  cleanSecret,
+  streamChat,
+  readBodyWithTimeout,
+  type StreamMeta,
+} from './requester.ts';
 import { batchInstruction, createBatchItems, parseBatchTranslations } from './batch-protocol.ts';
 import { localSkipReason } from './language-detection.ts';
 import { createStats, estimateTokens, type TranslationStats } from './usage.ts';
@@ -82,6 +89,10 @@ export function cacheKeyOf(cfg: AppConfig): string {
     cfg.systemPrompt || '',
     cfg.glossaryEnabled === false ? 'glossary:off' : cfg.customGlossary || 'glossary:default',
     'terms:' + (cfg.glossaryTermLimit ?? 12),
+    // 长文强模型与备用引擎都会实际产出译文：不参与键的话，强模型译文会被
+    // 弱引擎的键命中（质量预期错位），且用户改配置后旧缓存不会失效。
+    'strong:' + (cfg.strongProvider || '') + '>' + (cfg.strongModel || '') + '@' + (cfg.strongThreshold ?? ''),
+    'fb:' + (cfg.fallbackProviders || []).join(','),
   ].join('|');
 }
 
@@ -143,8 +154,11 @@ function buildCandidates(cfg: AppConfig): AppConfig[] {
       out.push({
         ...cfg,
         provider: fb,
-        baseUrl: provider.baseUrl,
-        model: provider.defaultModel,
+        // 备用引擎为「自定义」时必须沿用用户配置的端点与模型：
+        // custom 的预设 baseUrl 是空串，直接覆盖会让备用请求打到空地址必然失败。
+        baseUrl: fb === 'custom' ? cfg.baseUrl : provider.baseUrl,
+        model: fb === 'custom' ? cfg.model || provider.defaultModel : provider.defaultModel,
+        fallbackProviders: [], // 防止候选内部再嵌套一层完整故障转移（平方级放大请求）
       });
     }
   }
@@ -171,7 +185,8 @@ function resolveStrongCfg(cfg: AppConfig): AppConfig | null {
   return {
     ...cfg,
     provider: cfg.strongProvider,
-    baseUrl: provider.baseUrl,
+    // 强引擎为「自定义」时沿用用户配置的端点（同 buildCandidates 的处理）。
+    baseUrl: cfg.strongProvider === 'custom' ? cfg.baseUrl : provider.baseUrl,
     model: cfg.strongModel,
   };
 }
@@ -181,20 +196,60 @@ function resolveStrongCfg(cfg: AppConfig): AppConfig | null {
 const PROTECTED_TOKEN_RE =
   /(?<!\d)(?:\d[\d,._ ]*%?|0x[0-9a-fA-F]+)(?!\d)|https?:\/\/[^\s[\](){}，。、]+|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}|%[sd]|%\{\w+\}|\{\{\s*\w+\s*\}\}|\$\w+|\{\d+\}|[A-Za-z0-9_]+-[A-Za-z0-9_]+-[A-Za-z0-9_]+|[`~][^`~]+[`~]/g;
 
+// 全角区（U+FF01–U+FF5E）→ 半角，用于归一化比较。
+// 必须覆盖整个全角区而不只是数字/字母：译文本地化常把 % 写成 ％（U+FF05）、
+// 逗号写成 ，（U+FF0C），只转数字字母会漏掉这些形态导致误报。
+function toHalfWidth(s: string): string {
+  return s.replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+}
+
+// token 在译文中的等价形态：直接 includes 会高频误报（每次误报都白烧一次校正请求
+// 并给用户打 🚩 假警告），常见等价差异有：
+//   - 句尾标点被中文全角替换："in 2024." 的 token 是 "2024."，译文是 "2024。"
+//   - 千分位写法差异："1,000" ↔ "1000"
+//   - 全角数字："５０%" ↔ "50%"
+//   - 日期改写："2024-01-02" ↔ "2024年1月2日"（改为校验各数字段都出现）
+function tokenPresent(token: string, hay: string): boolean {
+  // eslint-disable-next-line no-control-regex -- 用 ASCII 范围判断 token 是否为拉丁字符
+  const isAscii = /^[\x00-\x7F]*$/.test(token);
+  const half = toHalfWidth(token);
+  const base = isAscii ? half.toLowerCase() : half;
+  if (hay.includes(base)) return true;
+  // 剥掉被一起捕获的尾随标点（含中文全角标点）
+  const noTrail = base.replace(/[.,;:!?'"]+$/u, '');
+  if (noTrail !== base && hay.includes(noTrail)) return true;
+  // 千分位/分隔符差异（1,000 ↔ 1000；小数点两侧不剥，避免 "5.2"↔"52" 混淆）
+  const noSep = noTrail.replace(/,(?=\d{3}(\D|$))/g, '');
+  if (noSep !== noTrail && hay.includes(noSep)) return true;
+  // 日期型 token：译成「2024年1月2日」时逐段校验（允许去前导零）
+  const dateParts = noSep.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (dateParts) {
+    const [, y, m, d] = dateParts;
+    return (
+      hay.includes(y) && hay.includes(String(Number(m))) && hay.includes(String(Number(d)))
+    );
+  }
+  // 去前导零的纯数字（"01" ↔ "1"）：日期被正则拆成段后常出现此形态，
+  // 中文译文习惯写「1月2日」而非「01月02日」。
+  if (/^\d+$/.test(noSep)) {
+    return hay.includes(String(Number(noSep)));
+  }
+  return false;
+}
+
 export function auditTranslation(original: string, translation: string): string[] {
   const found = original.match(PROTECTED_TOKEN_RE);
   if (!found) return [];
   const trans = translation || '';
+  // 比较统一在「半角 + 小写」空间进行
+  const hay = toHalfWidth(trans).toLowerCase();
   const missing: string[] = [];
   const seen = new Set<string>();
   for (const token of found) {
     const key = token.trim();
     if (!key || seen.has(key)) continue;
     seen.add(key);
-    // eslint-disable-next-line no-control-regex -- 用 ASCII 范围判断 token 是否为拉丁字符
-    const isAscii = /^[\x00-\x7F]*$/.test(key);
-    const present = isAscii ? trans.toLowerCase().includes(key.toLowerCase()) : trans.includes(key);
-    if (!present) missing.push(key);
+    if (!tokenPresent(key, hay)) missing.push(key);
   }
   return missing;
 }
@@ -266,15 +321,19 @@ async function coreTranslate(
       const out = await translateMT(c.provider, text, c, signal);
       return { text: out, promptTokens: 0, completionTokens: 0 };
     }
-    return callChat(c, m.masked, undefined, block, ctx, signal, m.count);
+    // 单次调用（不带内部故障转移）：候选遍历与协议分发由本函数的外层循环统一负责，
+    // 避免「外层遍历 × 内层再遍历」把最坏情况请求数放大成 O(n²)。
+    return callChatOnce(c, m.masked, undefined, block, ctx, signal, m.count);
   };
 
   let lastErr: unknown;
   let result: ChatResult | null = null;
+  let usedCfg: AppConfig | null = null;
   for (const c of candidates) {
     try {
       signal?.throwIfAborted();
       result = await tryOnce(c);
+      usedCfg = c;
       lastErr = null;
       break;
     } catch (error) {
@@ -283,21 +342,24 @@ async function coreTranslate(
       lastErr = error;
     }
   }
-  if (!result) throw lastErr ?? new Error('翻译失败');
+  if (!result || !usedCfg) throw lastErr ?? new Error('翻译失败');
   addChatUsage(stats, result);
 
   let translation = result.text;
   let issue: string[] | null = null;
   // 传统 MT 引擎（DeepL/Google/Microsoft）无 chat/completions 端点，校正重试必然失败，
   // 且其翻译质量稳定，缺失关键符号的概率极低——直接标记，不做校正重试。
-  const isMt = getProvider(cfg.provider)?.type === 'mt';
+  // 判定依据是「实际成功」的引擎：主引擎 MT 故障转移到 LLM 备用后仍可校正；
+  // 反之主 LLM 转到 MT 备用时不做校正。校正请求同样发给实际成功的引擎配置，
+  // 否则会拿 MT 配置去打 /chat/completions，必然 404 白费一次请求。
+  const isMt = getProvider(usedCfg.provider)?.type === 'mt';
   if (cfg.qualityCheck && !isMt) {
     const missing = auditTranslation(text, translation);
     if (missing.length > 0) {
       // 一次校正重试：显式要求保留缺失的关键符号。
       try {
         const corrective = await callChat(
-          cfg,
+          usedCfg,
           m.masked,
           `遗漏了关键信息，请原样保留不翻译：${missing.join('，')}`,
           block,
@@ -417,7 +479,9 @@ async function translateSentences(
       return;
     }
     if (localSkipReason(norm, cfg.targetLang, cfg.sourceLang)) {
-      translated[i] = norm + s.delim;
+      // 本地跳过 = 原文已是目标语言，回填必须用原始句子（norm 是小写化后的缓存键，
+      // 直接输出会把 "HELLO!" 显示成 "hello!"）。
+      translated[i] = s.content + s.delim;
       stats.localSkipped++;
       countSaved(stats, norm);
       return;
@@ -455,6 +519,7 @@ async function translateSentences(
       missingIndexes.map((i) => sentences[i].content),
       signal,
       context,
+      { disableStrongRouting: true },
     );
     mergeSubStats(stats, batch.stats);
     const missingTokens = new Set<string>();
@@ -567,22 +632,27 @@ export async function translateOneStream(
   let lastErr: unknown;
   let ok = false;
   for (const c of candidates) {
+    // 单次调用（不带内部故障转移）：与 coreTranslate 一致，候选遍历由外层统一负责，
+    // 避免双层故障转移平方级放大请求数。每次尝试用独立 meta，成功后才合入，
+    // 防止失败尝试的 usage/finish_reason 污染统计。
+    const attemptMeta: StreamMeta = {};
     try {
       signal?.throwIfAborted();
       full = '';
-      for await (const delta of callChatStream(
+      for await (const delta of callChatStreamOnce(
         c,
         masked.masked,
         block,
         liveContext,
         signal,
-        (mm) => Object.assign(meta, mm),
+        (mm) => Object.assign(attemptMeta, mm),
         masked.count,
       )) {
         full += delta;
         // 增量也要还原占位符，否则界面上会先闪出遮罩字符再被最终译文替换。
         onDelta(restorePartial(masked, full));
       }
+      Object.assign(meta, attemptMeta);
       ok = true;
       break;
     } catch (error) {
@@ -599,6 +669,9 @@ export async function translateOneStream(
   const translation = masked.restore(full.trim());
   let issue: string[] | null = null;
   if (!translation) throw new Error('翻译服务返回了空结果');
+  // 截断检测：finish_reason 为 length/max_tokens 说明输出被 max_tokens 截断。
+  // 与非流式路径对齐：半截译文不写缓存（否则污染 30 天缓存），并标记质量告警。
+  const truncated = meta.finishReason === 'length' || meta.finishReason === 'max_tokens';
   if (cfg.qualityCheck) {
     const missing = auditTranslation(t, translation);
     if (missing.length > 0) {
@@ -606,7 +679,12 @@ export async function translateOneStream(
       stats.qualityIssues++;
     }
   }
-  if (cfg.cacheEnabled) setCachedSync(t, cfg.targetLang, ck, translation);
+  if (truncated) {
+    issue = [...(issue ?? []), '模型输出被截断，译文可能不完整'];
+    stats.qualityIssues++;
+  } else if (cfg.cacheEnabled) {
+    setCachedSync(t, cfg.targetLang, ck, translation);
+  }
   const r = { translation, stats, issue };
   onDone?.(r);
   return r;
@@ -618,6 +696,7 @@ export async function translateBatchDetailed(
   texts: string[],
   signal?: AbortSignal,
   context?: TranslationContext,
+  opts?: { disableStrongRouting?: boolean },
 ): Promise<TranslationBatchResult> {
   signal?.throwIfAborted();
   await ensureCacheLoaded();
@@ -630,8 +709,14 @@ export async function translateBatchDetailed(
   const liveContext = cfg.contextAware ? context : undefined;
 
   // 长文强模型路由：整批总字符超阈值时整体改用强引擎。
+  // 句子缓存路径会显式禁用内部强模型路由：外层已按「单段长度」决策过
+  // （未达阈值才走句子拆分），子批合计长度超阈值不应二次升级到强模型，
+  // 否则互斥形同虚设、多句合并请求被整体送进贵模型。
   const strongCfg =
-    cfg.strongProvider && cfg.strongModel && texts.join('').length > cfg.strongThreshold
+    !opts?.disableStrongRouting &&
+    cfg.strongProvider &&
+    cfg.strongModel &&
+    texts.join('').length > cfg.strongThreshold
       ? resolveStrongCfg(cfg)
       : null;
   const effectiveCfg = strongCfg ?? cfg;
@@ -760,11 +845,29 @@ export async function translateBatchDetailed(
           const miss = cfg.qualityCheck ? auditTranslation(item.text, restored) : null;
           applyResult(item, restored, miss && miss.length ? miss : null);
         } catch (error) {
-          if (!(error instanceof TruncatedOutputError)) throw error;
-          stats.requests++;
-          stats.promptTokens += error.promptTokens;
-          stats.completionTokens += error.completionTokens;
-          await translateLongItem(item);
+          if (signal?.aborted) throw error;
+          let recovered = false;
+          if (error instanceof TruncatedOutputError) {
+            stats.requests++;
+            stats.promptTokens += error.promptTokens;
+            stats.completionTokens += error.completionTokens;
+            try {
+              await translateLongItem(item);
+              recovered = true;
+            } catch (longError) {
+              if (signal?.aborted) throw longError;
+            }
+          }
+          if (!recovered) {
+            // 单条目彻底失败（网络抖动 / 再截断 / 服务端错误）：保留原文并标记，
+            // 绝不让一条病态条目把整批其余已翻好的结果全部拖垮。
+            // 注意失败结果不写缓存，避免把「原文=原文」固化 30 天导致无法重试。
+            item.indexes.forEach((index) => {
+              result[index] = item.text;
+              issues[index] = ['该段翻译失败，已保留原文'];
+            });
+            stats.qualityIssues++;
+          }
         }
       }
     };
@@ -827,7 +930,9 @@ export async function translateBatchDetailed(
     if (items.length === 1) {
       if (splitsLeft === MAX_BATCH_RECOVERY_REQUESTS) {
         // 顶层单条目：兼容模型常直接返回纯文本，复用响应避免重复请求（省 Token）。
-        applyResult(items[0], response.text);
+        // 注意：输入经过标识符遮罩，纯文本回退同样要做占位符还原，
+        // 否则 PUA 私有区字符会原样进入译文并污染缓存。
+        applyResult(items[0], maskedItems[0].restore(response.text));
       } else {
         // 拆分得到的单条目仍不遵循 JSON 协议：改走普通单句提示，
         // 避免把模型的解释、拒答或格式错误原样显示成译文。
@@ -882,7 +987,7 @@ async function translateMT(
         `Google 免 Key 端点返回 ${res.status}。该端点为非官方通道，可能限流或临时不可用；若持续失败，请改用需 API Key 的翻译服务（见设置页）。`,
       );
     }
-    const data = await res.json();
+    const data = await readBodyWithTimeout(res.json(), 20000);
     return (data?.[0] ?? []).map((seg: any) => seg?.[0] ?? '').join('');
   }
   if (providerId === 'deepl') {
@@ -900,7 +1005,7 @@ async function translateMT(
       20000,
     );
     if (!res.ok) throw new Error(`DeepL 翻译失败 (${res.status})：请检查 API Key`);
-    const data = await res.json();
+    const data = await readBodyWithTimeout(res.json(), 20000);
     return data?.translations?.[0]?.text ?? '';
   }
   if (providerId === 'microsoft') {
@@ -919,7 +1024,7 @@ async function translateMT(
       20000,
     );
     if (!res.ok) throw new Error(`Microsoft 翻译失败 (${res.status})：请检查 Key`);
-    const data = await res.json();
+    const data = await readBodyWithTimeout(res.json(), 20000);
     return data?.[0]?.translations?.[0]?.text ?? '';
   }
   throw new Error('不支持的传统翻译引擎');
@@ -956,7 +1061,7 @@ async function translateMTBatch(
       20_000,
     );
     if (!res.ok) throw new Error(`DeepL 翻译失败 (${res.status})：请检查 API Key`);
-    const data = await res.json();
+    const data = await readBodyWithTimeout(res.json(), 20_000);
     const translations = Array.isArray(data?.translations)
       ? data.translations.map((item: any) => String(item?.text || ''))
       : [];
@@ -980,7 +1085,7 @@ async function translateMTBatch(
       20_000,
     );
     if (!res.ok) throw new Error(`Microsoft 翻译失败 (${res.status})：请检查 Key`);
-    const data = await res.json();
+    const data = await readBodyWithTimeout(res.json(), 20_000);
     const translations = Array.isArray(data)
       ? data.map((item: any) => String(item?.translations?.[0]?.text || ''))
       : [];
@@ -989,15 +1094,24 @@ async function translateMTBatch(
   }
 
   // Google 的免费端点不保证多文本协议，使用有限并发避免逐条串行。
+  // 单条失败降级为空串（上层会回退原文），不让一条网络抖动拖垮整批。
   const translations = new Array<string>(texts.length);
   let next = 0;
+  let failed = 0;
   const worker = async () => {
     while (next < texts.length) {
       const index = next++;
-      translations[index] = await translateMT(providerId, texts[index], cfg, signal);
+      try {
+        translations[index] = await translateMT(providerId, texts[index], cfg, signal);
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        failed++;
+        translations[index] = '';
+      }
     }
   };
   await Promise.all(Array.from({ length: Math.min(6, texts.length) }, () => worker()));
+  if (failed >= texts.length) throw new Error('Google 免 Key 端点全部请求失败，可能已被限流');
   return { translations, requests: texts.length };
 }
 
@@ -1098,30 +1212,8 @@ async function callChatOnce(
 }
 
 // 流式版本：开启 stream:true，边收边 yield 文本增量（用于首块首字加速）。
-async function* callChatStream(
-  cfg: AppConfig,
-  text: string,
-  glossaryBlock: string,
-  context: TranslationContext | undefined,
-  signal: AbortSignal | undefined,
-  onMeta: (meta: StreamMeta) => void,
-  maskCount = 0,
-): AsyncGenerator<string, void, unknown> {
-  const candidates = buildCandidates(cfg);
-  let lastErr: unknown;
-  for (const c of candidates) {
-    try {
-      yield* callChatStreamOnce(c, text, glossaryBlock, context, signal, onMeta, maskCount);
-      return;
-    } catch (error) {
-      if (signal?.aborted) throw error;
-      if (!isFailoverError(error)) throw error;
-      lastErr = error;
-    }
-  }
-  throw lastErr ?? new Error('流式翻译失败');
-}
-
+// 候选遍历由 translateOneStream 的外层循环负责（单层故障转移），
+// 这里只做单次尝试。
 async function* callChatStreamOnce(
   cfg: AppConfig,
   text: string,
