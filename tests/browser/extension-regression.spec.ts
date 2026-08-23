@@ -431,8 +431,9 @@ test('full settings panel opens as an in-page panel with the settings form', asy
   await expect(full).toBeVisible();
   // 内联渲染完整设置表单（不再使用 iframe——网页无法嵌入扩展页面会被浏览器拦截）
   await expect(full.locator('.ot-form')).toHaveCount(1);
-  await expect(full.locator('h2', { hasText: '模型服务' })).toBeVisible();
+  await expect(full.locator('h2', { hasText: '引擎与密钥' })).toBeVisible();
   await expect(full.locator('h2', { hasText: '翻译偏好' })).toBeVisible();
+  await expect(full.locator('h2', { hasText: '省 Token 与多引擎路由' })).toBeVisible();
   // 样式已内嵌打包：表单字段带圆角卡片背景（iOS 分组样式生效）
   const bg = await full
     .locator('.ot-form-section')
@@ -681,7 +682,11 @@ test('full settings modal: centered overlay with blur and sync with quick panel'
     });
   const initial = await switchState();
   expect(initial.cacheEnabled).toBe(true); // 默认开启且视觉勾选
-  await full.locator('input[data-f="cacheEnabled"]').click({ force: true });
+  // 点击可见的 label（checkbox 本体是 1×1 视觉隐藏输入，深层滚动时坐标不可靠）
+  await full
+    .locator('label.ot-check')
+    .filter({ has: page.locator('input[data-f="cacheEnabled"]') })
+    .click();
   await page.waitForTimeout(300);
   const afterClick = await switchState();
   expect(afterClick.cacheEnabled).toBe(false); // 点击后视觉关闭

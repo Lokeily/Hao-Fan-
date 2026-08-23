@@ -1154,3 +1154,15 @@ h1 {
   font-size: 13px;
   line-height: 1.6;
 }
+
+/* ===== 迁移提示 ===== */
+.ot-migrate-hint {
+  margin-top: 12px;
+  padding: 10px 13px;
+  border-radius: 10px;
+  background: rgba(0, 200, 150, 0.08);
+  border: 1px dashed rgba(0, 200, 150, 0.45);
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.65;
+}

@@ -69,3 +69,18 @@ export function parseBackup(text: string): SettingsBackup | null {
   }
   return isSettingsBackup(data) ? data : null;
 }
+
+/** 构建剪贴板快速迁移用的 JSON 文本（含 Key，由调用方决定是否剥离）。 */
+export function buildClipboardPayload(config: AppConfig): string {
+  return JSON.stringify(
+    {
+      app: BACKUP_APP,
+      kind: BACKUP_KIND,
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      config,
+    },
+    null,
+    2,
+  );
+}

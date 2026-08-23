@@ -1,4 +1,4 @@
-import { configItem } from './storage.ts';
+﻿import { configItem } from './storage.ts';
 import { getCacheStats, clearTranslateCache } from './cache.ts';
 import { PROVIDERS } from './providers.ts';
 import { LANGUAGES } from './languages.ts';
@@ -35,40 +35,10 @@ export function buildConfigForm(
 ): ConfigFormApi {
   let cfg: AppConfig = normalizeConfig(configItem.defaultValue);
 
-  const advancedFields = `
-    <div class="ot-field-grid">
-      <label class="ot-field ot-field-wide">API Base URL
-        <input data-f="baseUrl" type="url" inputmode="url" placeholder="https://..." />
-      </label>
-      <label class="ot-check ot-field-wide" data-custom-vision hidden>
-        <input data-f="customVision" type="checkbox" />
-        <span><strong>接口支持图片模型</strong><small>仅为兼容视觉输入的自定义接口开启</small></span>
-      </label>
-      <label class="ot-field ot-field-wide">系统提示词
-        <textarea data-f="systemPrompt" rows="3" placeholder="留空使用内置提示词"></textarea>
-      </label>
-      <label class="ot-field ot-field-wide">我的术语表 <span>每行：源词=译文</span>
-        <textarea data-f="customGlossary" rows="3" placeholder="GitHub=GitHub\nrepository=代码仓库\nissue=工单"></textarea>
-      </label>
-      <label class="ot-field ot-field-wide">备用引擎（故障转移） <span>主引擎限流/报错时按顺序切换，逗号分隔</span>
-        <input data-f="fallbackProviders" type="text" placeholder="deepl, openai" />
-      </label>
-      <label class="ot-field">长文强模型·引擎
-        <select data-f="strongProvider"><option value="">不启用</option></select>
-      </label>
-      <label class="ot-field">长文强模型·模型
-        <input data-f="strongModel" type="text" placeholder="如 gpt-4o" />
-      </label>
-      <label class="ot-field">长文路由阈值（字符）
-        <input data-f="strongThreshold" type="number" min="200" step="100" />
-      </label>
-    </div>
-  `;
-
   const formMarkup = `
     <form class="ot-form" autocomplete="off">
       <section class="ot-form-section">
-        <h2>模型服务</h2>
+        <h2>① 引擎与密钥</h2>
         <div class="ot-field-grid">
           <label class="ot-field">翻译引擎
             <select data-f="provider"></select>
@@ -80,11 +50,22 @@ export function buildConfigForm(
           <label class="ot-field ot-field-wide">API Key
             <input data-f="apiKey" type="password" autocomplete="new-password" placeholder="当前服务商专用，保存在本地" />
           </label>
+          <label class="ot-field ot-field-wide">API Base URL
+            <input data-f="baseUrl" type="url" inputmode="url" placeholder="https://..." />
+          </label>
+          <label class="ot-check ot-field-wide" data-custom-vision hidden>
+            <input data-f="customVision" type="checkbox" />
+            <span><strong>接口支持图片模型</strong><small>仅为兼容视觉输入的自定义接口开启</small></span>
+          </label>
+        </div>
+        <div class="ot-form-actions">
+          <button type="button" data-f="test" class="ot-test-btn">测试连接</button>
+          <div class="ot-status" role="status" aria-live="polite"></div>
         </div>
       </section>
 
       <section class="ot-form-section">
-        <h2>翻译偏好</h2>
+        <h2>② 翻译偏好</h2>
         <div class="ot-field-grid ot-lang-row">
           <label class="ot-field">源语言
             <select data-f="sourceLang"></select>
@@ -92,7 +73,16 @@ export function buildConfigForm(
           <label class="ot-field">目标语言
             <select data-f="targetLang"></select>
           </label>
-          <label class="ot-field ot-field-wide">翻译风格
+        </div>
+        <div class="ot-field-grid">
+          <label class="ot-field">翻译模式
+            <span>手动 = 点击段落 / 划词才翻译，最省 Token</span>
+            <select data-f="translateMode">
+              <option value="manual">手动点击 / 划词（推荐）</option>
+              <option value="auto">自动整页对照</option>
+            </select>
+          </label>
+          <label class="ot-field">翻译风格
             <select data-f="tone">
               <option value="自然流畅">自然流畅（推荐）</option>
               <option value="正式书面">正式书面</option>
@@ -100,24 +90,33 @@ export function buildConfigForm(
               <option value="简洁精炼">简洁精炼</option>
             </select>
           </label>
-          <label class="ot-field ot-field-wide">翻译模式
-            <span>自动整页对照，或仅手动点击 / 划词翻译（最省 Token）</span>
-            <select data-f="translateMode">
-              <option value="auto">自动整页（推荐）</option>
-              <option value="manual">手动点击 / 划词</option>
+          <label class="ot-field">译文显示样式
+            <span>译文在原文下方的呈现方式</span>
+            <select data-f="translationStyle">
+              <option value="plain">默认（清淡无装饰）</option>
+              <option value="dashed">蓝色虚线分隔</option>
+              <option value="underline">蓝色下划线</option>
+              <option value="highlight">浅蓝高亮块</option>
+            </select>
+          </label>
+          <label class="ot-field">界面主题
+            <span>悬浮按钮 / 面板 / 浮层的深浅色</span>
+            <select data-f="themeMode">
+              <option value="auto">跟随系统（自动切换）</option>
+              <option value="light">始终浅色</option>
+              <option value="dark">始终深色</option>
             </select>
           </label>
         </div>
       </section>
 
-      ${
-        siteCtx
-          ? `<section class="ot-form-section">
-        <h2>本站</h2>
+      ${siteCtx
+        ? `<section class="ot-form-section">
+        <h2>③ 本站</h2>
         <div class="ot-switches">
           <label class="ot-check" id="ot-full-auto">
             <input type="checkbox" data-site-ctx="auto" ${siteCtx.autoTranslate ? 'checked' : ''} />
-            <span><strong>自动翻译此站</strong><small>打开 ${siteCtx.host} 的页面时自动开始翻译</small></span>
+            <span><strong>自动翻译此站</strong><small>打开 ${siteCtx.host} 的页面时自动开始翻译（手动模式下不生效）</small></span>
           </label>
           <label class="ot-check" id="ot-full-pause">
             <input type="checkbox" data-site-ctx="pause" ${siteCtx.paused ? 'checked' : ''} />
@@ -125,40 +124,11 @@ export function buildConfigForm(
           </label>
         </div>
       </section>`
-          : ''
+        : ''
       }
 
       <section class="ot-form-section">
-        <h2>节省 Token</h2>
-        <div class="ot-switches">
-          <label class="ot-check">
-            <input data-f="cacheEnabled" type="checkbox" />
-            <span><strong>翻译缓存</strong><small>重复内容直接复用译文</small></span>
-          </label>
-          <label class="ot-check">
-            <input data-f="glossaryEnabled" type="checkbox" />
-            <span><strong>术语库</strong><small>本地命中术语，不调用模型</small></span>
-          </label>
-          <label class="ot-check">
-            <input data-f="sentenceCache" type="checkbox" />
-            <span><strong>句子级缓存</strong><small>按句缓存，SPA 微变只重译变化句</small></span>
-          </label>
-        </div>
-        <div class="ot-field-grid">
-          <label class="ot-field ot-field-wide">术语注入上限
-            <span>每批提示词注入的术语条数，越低越省 Token</span>
-            <select data-f="glossaryTermLimit">
-              <option value="0">关闭（不注入术语，最省）</option>
-              <option value="6">6 条（更省）</option>
-              <option value="12">12 条（推荐）</option>
-              <option value="24">24 条（译名更一致）</option>
-            </select>
-          </label>
-        </div>
-      </section>
-
-      <section class="ot-form-section">
-        <h2>智能增强</h2>
+        <h2>④ 智能增强与交互</h2>
         <div class="ot-switches">
           <label class="ot-check">
             <input data-f="streaming" type="checkbox" />
@@ -185,23 +155,46 @@ export function buildConfigForm(
             <span><strong>输入框翻译</strong><small>网页输入框聚焦时提供翻译入口</small></span>
           </label>
         </div>
+      </section>
+
+      <section class="ot-form-section">
+        <h2>⑤ 省 Token 与多引擎路由</h2>
+        <div class="ot-switches">
+          <label class="ot-check">
+            <input data-f="cacheEnabled" type="checkbox" />
+            <span><strong>翻译缓存</strong><small>重复内容直接复用译文</small></span>
+          </label>
+          <label class="ot-check">
+            <input data-f="glossaryEnabled" type="checkbox" />
+            <span><strong>术语库</strong><small>本地命中术语，不调用模型</small></span>
+          </label>
+          <label class="ot-check">
+            <input data-f="sentenceCache" type="checkbox" />
+            <span><strong>句子级缓存</strong><small>按句缓存，SPA 微变只重译变化句</small></span>
+          </label>
+        </div>
         <div class="ot-field-grid">
-          <label class="ot-field ot-field-wide">译文显示样式
-            <span>译文在原文下方的呈现方式</span>
-            <select data-f="translationStyle">
-              <option value="plain">默认（清淡无装饰）</option>
-              <option value="dashed">蓝色虚线分隔</option>
-              <option value="underline">蓝色下划线</option>
-              <option value="highlight">浅蓝高亮块</option>
+          <label class="ot-field ot-field-wide">术语注入上限
+            <span>每批提示词注入的术语条数，越低越省 Token</span>
+            <select data-f="glossaryTermLimit">
+              <option value="0">关闭（不注入术语，最省）</option>
+              <option value="6">6 条（更省）</option>
+              <option value="12">12 条（推荐）</option>
+              <option value="24">24 条（译名更一致）</option>
             </select>
           </label>
-          <label class="ot-field ot-field-wide">界面主题
-            <span>悬浮按钮 / 设置面板 / 结果浮层的深浅色</span>
-            <select data-f="themeMode">
-              <option value="auto">跟随系统（自动切换）</option>
-              <option value="light">始终浅色</option>
-              <option value="dark">始终深色</option>
-            </select>
+          <label class="ot-field ot-field-wide">备用引擎（故障转移）
+            <span>主引擎限流 / 报错时按顺序切换，逗号分隔</span>
+            <input data-f="fallbackProviders" type="text" placeholder="deepl, openai" />
+          </label>
+          <label class="ot-field">长文强模型 · 引擎
+            <select data-f="strongProvider"><option value="">不启用</option></select>
+          </label>
+          <label class="ot-field">长文强模型 · 模型
+            <input data-f="strongModel" type="text" placeholder="如 gpt-4o" />
+          </label>
+          <label class="ot-field">长文路由阈值（字符）
+            <input data-f="strongThreshold" type="number" min="200" step="100" />
           </label>
         </div>
         <div class="ot-cache-row">
@@ -210,16 +203,17 @@ export function buildConfigForm(
         </div>
       </section>
 
-      ${
-        compact
-          ? `<details class="ot-advanced"><summary>高级设置</summary>${advancedFields}</details>`
-          : `<section class="ot-form-section"><h2>高级设置</h2>${advancedFields}</section>`
-      }
-
-      <div class="ot-form-actions">
-        <button type="button" data-f="test" class="ot-test-btn">测试连接</button>
-        <div class="ot-status" role="status" aria-live="polite"></div>
-      </div>
+      <section class="ot-form-section">
+        <h2>⑥ 个人词库与系统提示词</h2>
+        <div class="ot-field-grid">
+          <label class="ot-field ot-field-wide">系统提示词
+            <textarea data-f="systemPrompt" rows="3" placeholder="留空使用内置提示词"></textarea>
+          </label>
+          <label class="ot-field ot-field-wide">我的术语表 <span>每行：源词=译文</span>
+            <textarea data-f="customGlossary" rows="3" placeholder="GitHub=GitHub\nrepository=代码仓库\nissue=工单"></textarea>
+          </label>
+        </div>
+      </section>
     </form>
   `;
   const parsedForm = new DOMParser().parseFromString(formMarkup, 'text/html');
@@ -260,7 +254,6 @@ export function buildConfigForm(
   const status = mount.querySelector('.ot-status') as HTMLElement;
   const cacheCountEl = mount.querySelector('[data-f=cacheCount]') as HTMLElement;
   const cacheClearBtn = mount.querySelector('[data-f=cacheClear]') as HTMLButtonElement;
-  const advanced = mount.querySelector('.ot-advanced') as HTMLDetailsElement | null;
   const customModelValue = '__haofan_custom_model__';
   let statusTimer: ReturnType<typeof setTimeout> | null = null;
   let saveQueue: Promise<void> = Promise.resolve();
@@ -362,7 +355,6 @@ export function buildConfigForm(
     baseInput.value = p?.baseUrl || '';
     baseInput.readOnly = providerId !== 'custom';
     customVisionRow.hidden = providerId !== 'custom';
-    if (advanced && providerId === 'custom') advanced.open = true;
   }
 
   // checkbox 勾选样式：不用 :has()（旧浏览器不支持），由 JS 同步 class。
