@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+﻿import { expect, test } from '@playwright/test';
 
 test('selection translation works on an insecure page', async ({ page }) => {
   await page.goto('/tests/browser/selection-regression.html');
@@ -300,7 +300,7 @@ test('critical: setup guide never hijacks the full settings panel', async ({ pag
   await expect(page.locator('#ot-error-modal')).toHaveCount(0);
 
   // 点击面板内其他区域同样安全
-  await full.locator('h2', { hasText: '引擎与密钥' }).click();
+  await full.locator('h2', { hasText: '翻译引擎' }).click();
   await expect(page.locator('#ot-error-modal')).toHaveCount(0);
 });
 
@@ -501,9 +501,9 @@ test('full settings panel opens as an in-page panel with the settings form', asy
   await expect(full).toBeVisible();
   // 内联渲染完整设置表单（不再使用 iframe——网页无法嵌入扩展页面会被浏览器拦截）
   await expect(full.locator('.ot-form')).toHaveCount(1);
-  await expect(full.locator('h2', { hasText: '引擎与密钥' })).toBeVisible();
-  await expect(full.locator('h2', { hasText: '翻译偏好' })).toBeVisible();
-  await expect(full.locator('h2', { hasText: '省 Token 与多引擎路由' })).toBeVisible();
+  await expect(full.locator('h2', { hasText: '翻译引擎' })).toBeVisible();
+  await expect(full.locator('h2', { hasText: '语言与偏好' })).toBeVisible();
+  await expect(full.locator('h2', { hasText: '功能开关' })).toBeVisible();
   // 样式已内嵌打包：表单字段带圆角卡片背景（iOS 分组样式生效）
   const bg = await full
     .locator('.ot-form-section')
@@ -701,7 +701,9 @@ test('full settings modal: centered overlay with blur and sync with quick panel'
   expect(modalInfo.radius).not.toBe('0px');
   expect(modalInfo.blur).toContain('blur');
 
-  // 输入可用：真实点击输入框（不关闭面板）→ 输入 → 保存
+  // 输入可用：展开高级设置 → 真实点击输入框（不关闭面板）→ 输入 → 保存
+  await full.locator('details.ot-advanced-section summary').click();
+  await expect(full.locator('details.ot-advanced-section[open]')).toBeVisible();
   const glossary = full.locator('textarea[data-f="customGlossary"]');
   await glossary.click();
   await expect(full).toBeVisible(); // 点击面板内控件不会关闭

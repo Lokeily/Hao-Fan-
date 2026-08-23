@@ -1166,3 +1166,44 @@ h1 {
   font-size: 13px;
   line-height: 1.65;
 }
+
+/* ===== 功能开关网格（v0.2.1 面板重排） ===== */
+.ot-switch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0;
+  margin-bottom: 14px;
+}
+
+.ot-switch-grid .ot-check {
+  min-height: 44px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,.06));
+}
+
+.ot-sec-hint {
+  color: var(--text-3, #8e8e93);
+  font-size: 12.5px;
+  margin: 4px 0 12px;
+}
+
+/* ===== 高级设置折叠面板 ===== */
+details.ot-advanced-section > summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-2, #6e6e73);
+  padding: 10px 0;
+  list-style: none;
+  user-select: none;
+}
+details.ot-advanced-section > summary::before {
+  content: '▸ ';
+  color: var(--accent);
+}
+details.ot-advanced-section[open] > summary::before {
+  content: '▾ ';
+}
+details.ot-advanced-section[open] > summary {
+  margin-bottom: 8px;
+}
