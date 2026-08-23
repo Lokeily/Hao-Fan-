@@ -1172,10 +1172,14 @@ export default defineContentScript({
         return;
       }
 
-      // 手动模式：不做整页自动翻译，仅由「点击段落 / 划词」触发（省 Token，且不被无关内容打扰）。
+      // 手动模式：不做整页自动翻译，仅由「点击段落 / 划词」触发。
+      // 自动初始化路径静默返回（避免每次导航都弹同样的提示）；
+      // 用户主动操作（工具栏 / 快捷键 / 弹窗）时给出一次性操作指引。
       if (currentTranslateMode === 'manual') {
         busy = false;
-        showStatus('手动模式：点击段落或划选文字即可翻译', true);
+        if (userInitiated) {
+          showStatus('手动模式：点击段落或划选文字即可翻译（可在设置中切换）', true, 3500);
+        }
         return;
       }
 

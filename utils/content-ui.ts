@@ -761,8 +761,8 @@ export function createSettingsPanel(opts: SettingsPanelOptions): SettingsPanel {
   const modeSel = document.createElement('select');
   modeSel.setAttribute('aria-label', '翻译模式');
   modeSel.append(
-    new Option('自动翻译整页', 'auto'),
-    new Option('手动点击 / 划词', 'manual'),
+    new Option('手动点击 / 划词（推荐）', 'manual'),
+    new Option('自动整页对照', 'auto'),
   );
   modeSel.value = opts.translateMode;
   modeSel.title = modeSel.options[modeSel.selectedIndex]?.textContent || '';
