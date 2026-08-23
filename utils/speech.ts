@@ -1,6 +1,8 @@
-// 译文朗读（TTS）：基于浏览器内置 speechSynthesis，零依赖、离线可用。
-// 语言匹配策略：按目标语言名映射 BCP47 标签，优先选择前缀匹配的语音；
-// 找不到匹配时用浏览器默认语音兜底（总比不能读好）。
+// 译文朗读（TTS）：基于浏览器内置 speechSynthesis，零依赖。
+// 音质策略：现代浏览器的语音列表里包含「在线合成」的高质量人声——
+//   · Chrome：Google 网络语音（名称含 Google）
+//   · Edge：Microsoft Natural 神经语音（名称含 Natural / Online）
+// 自动择优时优先这类在线语音；用户亦可在设置面板按目标语言自选人声。
 
 let currentUtterance: SpeechSynthesisUtterance | null = null;
 
@@ -44,40 +46,95 @@ export function stopSpeaking(): void {
   currentUtterance = null;
 }
 
-function pickVoice(tag: string): SpeechSynthesisVoice | null {
-  const voices = window.speechSynthesis.getVoices();
-  if (voices.length === 0) return null;
-  if (!tag) return voices[0] ?? null;
-  const base = tag.split('-')[0];
-  return (
-    voices.find((v) => v.lang.replace('_', '-') === tag) ||
-    voices.find((v) => v.lang.replace('_', '-').startsWith(base)) ||
-    null
-  );
+export function getVoices(): SpeechSynthesisVoice[] {
+  if (!isSpeechSupported()) return [];
+  return window.speechSynthesis.getVoices();
 }
 
-/** 朗读文本：会先取消当前朗读。不支持 TTS 的环境静默忽略。onEnd 在自然结束/被打断时回调。 */
+/** 语音列表异步加载；就绪（或已就绪）时回调一次。 */
+export function onVoicesReady(cb: () => void): void {
+  if (!isSpeechSupported()) return;
+  if (window.speechSynthesis.getVoices().length > 0) {
+    cb();
+    return;
+  }
+  window.speechSynthesis.addEventListener('voiceschanged', cb, { once: true });
+  // 兜底：部分浏览器不派发 voiceschanged，轮询一次
+  setTimeout(() => {
+    if (window.speechSynthesis.getVoices().length > 0) cb();
+  }, 800);
+}
+
+/** 在线优质语音加权：Natural 神经 > Google 网络 > 普通本地 */
+function voiceScore(v: SpeechSynthesisVoice): number {
+  const n = v.name.toLowerCase();
+  let s = 0;
+  if (/natural|neural|online|神经|在线/.test(n)) s += 4;
+  if (/google/.test(n)) s += 3;
+  if (/microsoft/.test(n) && !/natural|online/.test(n)) s += 1;
+  if (v.localService === false) s += 1; // 非本地 = 云端合成，通常更自然
+  return s;
+}
+
+/** 按语言列出可选人声（择优排序），供设置面板下拉使用。 */
+export function listVoicesForLang(tag: string): { name: string; lang: string; online: boolean }[] {
+  const voices = getVoices();
+  const base = (tag || '').split('-')[0].toLowerCase();
+  return voices
+    .filter((v) => !base || v.lang.replace('_', '-').toLowerCase().startsWith(base))
+    .map((v) => ({
+      name: v.name,
+      lang: v.lang,
+      online: voiceScore(v) >= 3,
+    }))
+    .sort((a, b) => {
+      const va = getVoices().find((v) => v.name === a.name);
+      const vb = getVoices().find((v) => v.name === b.name);
+      return (vb ? voiceScore(vb) : 0) - (va ? voiceScore(va) : 0);
+    });
+}
+
+function pickVoice(
+  tag: string,
+  preferredName?: string,
+): SpeechSynthesisVoice | null {
+  const voices = getVoices();
+  if (voices.length === 0) return null;
+  // ① 用户显式选择的人声（跨语言也尊重选择）
+  if (preferredName) {
+    const named = voices.find((v) => v.name === preferredName);
+    if (named) return named;
+  }
+  if (!tag) return null;
+  const base = tag.split('-')[0];
+  const inLang = voices.filter((v) => v.lang.replace('_', '-').toLowerCase().startsWith(base));
+  if (inLang.length === 0) return null;
+  // ② 自动择优：在线/Natural 优先
+  return inLang.sort((a, b) => voiceScore(b) - voiceScore(a))[0] ?? null;
+}
+
+/** 朗读文本：先取消当前朗读。不支持 TTS 的环境静默忽略。onEnd 在自然结束/被打断时回调。 */
 export function speakText(
   text: string,
   targetLangName: string,
-  onEnd?: () => void,
+  opts?: { voiceName?: string; onEnd?: () => void },
 ): void {
   if (!isSpeechSupported() || !text.trim()) return;
   stopSpeaking();
   const utterance = new SpeechSynthesisUtterance(text.slice(0, 2000));
   const tag = langTagOf(targetLangName);
   if (tag) utterance.lang = tag;
-  const voice = pickVoice(tag);
+  const voice = pickVoice(tag, opts?.voiceName);
   if (voice) utterance.voice = voice;
   // 语速略放缓：翻译朗读多用于学习场景，清晰度优先。
   utterance.rate = 0.95;
   utterance.onend = () => {
     currentUtterance = null;
-    onEnd?.();
+    opts?.onEnd?.();
   };
   utterance.onerror = () => {
     currentUtterance = null;
-    onEnd?.();
+    opts?.onEnd?.();
   };
   currentUtterance = utterance;
   window.speechSynthesis.speak(utterance);
@@ -95,7 +152,10 @@ export function hasActiveUtterance(): boolean {
 export function createSpeakButton(
   getText: () => string,
   getTargetLang: () => string,
-  opts?: { compact?: boolean },
+  opts?: {
+    compact?: boolean;
+    getVoiceName?: () => string;
+  },
 ): HTMLButtonElement {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -120,11 +180,14 @@ export function createSpeakButton(
     }
     const text = getText().trim();
     if (!text || text === '翻译中…') return;
-    speakText(text, getTargetLang(), () => {
-      if (btn.isConnected) {
-        btn.textContent = idleLabel;
-        btn.title = '朗读译文';
-      }
+    speakText(text, getTargetLang(), {
+      voiceName: opts?.getVoiceName?.() || '',
+      onEnd: () => {
+        if (btn.isConnected) {
+          btn.textContent = idleLabel;
+          btn.title = '朗读译文';
+        }
+      },
     });
     btn.textContent = stopLabel;
     btn.title = '停止朗读';

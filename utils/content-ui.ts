@@ -1,4 +1,4 @@
-// 内容脚本的纯 UI 构建辅助（从 entrypoints/content.ts 拆分）。
+﻿// 内容脚本的纯 UI 构建辅助（从 entrypoints/content.ts 拆分）。
 // 只负责「用原生 DOM 构造隔离良好的界面元素」，不持有页面翻译状态，
 // 因此可独立维护与测试。
 
@@ -867,7 +867,7 @@ export function createSettingsPanel(opts: SettingsPanelOptions): SettingsPanel {
 export function createHoverBubble(
   source: string,
   onPinnedChange: (pinned: boolean) => void,
-  options?: { getTargetLang?: () => string },
+  options?: { getTargetLang?: () => string; getVoiceName?: () => string },
 ): {
   host: HTMLElement;
   setTranslation: (t: string, opts?: { localSkipped?: boolean }) => void;
@@ -988,7 +988,7 @@ export function createHoverBubble(
   const speakBtn = createSpeakButton(
     () => dst.textContent || '',
     () => options?.getTargetLang?.() || '',
-    { compact: true },
+    { compact: true, getVoiceName: () => options?.getVoiceName?.() || '' },
   );
   speakBtn.className = 'copy';
   const copy = document.createElement('button');

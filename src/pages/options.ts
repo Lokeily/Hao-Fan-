@@ -204,7 +204,6 @@ if (typeof document !== 'undefined' && typeof location !== 'undefined') {
       if (backup.autoSites !== undefined) {
         await autoSitesItem.setValue(backup.autoSites);
       }
-      const keyCount = Object.keys(sanitized.apiKeys).length;
       setStatus(`剪贴板导入成功：引擎 ${sanitized.provider} · 目标语言 ${sanitized.targetLang}`);
       updateMigrateHint(sanitized);
     } catch (error) {

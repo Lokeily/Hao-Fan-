@@ -1,5 +1,6 @@
 ﻿import { configItem } from './storage.ts';
 import { getCacheStats, clearTranslateCache } from './cache.ts';
+import { langTagOf, listVoicesForLang, onVoicesReady } from './speech.ts';
 import { PROVIDERS } from './providers.ts';
 import { LANGUAGES } from './languages.ts';
 import { browser } from 'wxt/browser';
@@ -98,6 +99,10 @@ export function buildConfigForm(
               <option value="underline">蓝色下划线</option>
               <option value="highlight">浅蓝高亮块</option>
             </select>
+          </label>
+          <label class="ot-field ot-field-wide">朗读人声
+            <span>按译入语列出可选声音；「自动」优先在线高质量语音（Edge 神经 / Google 网络）</span>
+            <select data-f="ttsVoiceName"></select>
           </label>
           <label class="ot-field">界面主题
             <span>悬浮按钮 / 面板 / 浮层的深浅色</span>
@@ -246,6 +251,7 @@ export function buildConfigForm(
   const inputTranslateChk = mount.querySelector('[data-f=inputTranslate]') as HTMLInputElement;
   const translationStyleSel = mount.querySelector('[data-f=translationStyle]') as HTMLSelectElement;
   const themeModeSel = mount.querySelector('[data-f=themeMode]') as HTMLSelectElement;
+  const ttsVoiceSel = mount.querySelector('[data-f=ttsVoiceName]') as HTMLSelectElement;
   const fallbackInput = mount.querySelector('[data-f=fallbackProviders]') as HTMLInputElement;
   const strongProviderSel = mount.querySelector('[data-f=strongProvider]') as HTMLSelectElement;
   const strongModelInput = mount.querySelector('[data-f=strongModel]') as HTMLInputElement;
@@ -430,6 +436,9 @@ export function buildConfigForm(
     setIfDiff('inputTranslate', inputTranslateChk, cfg.inputTranslate !== false);
     setIfDiff('translationStyle', translationStyleSel, cfg.translationStyle || 'plain');
     setIfDiff('themeMode', themeModeSel, cfg.themeMode || 'auto');
+    // 人声下拉按当前目标语言动态填充后再回填所选值
+    refreshVoiceOptions();
+    setIfDiff('ttsVoiceName', ttsVoiceSel, cfg.ttsVoiceName || '');
     // 高级字段也必须回填：此前只写不读，打开设置页会显示空值，
     // 用户改其它项保存时会把多引擎配置静默清空（数据丢失 bug）。
     setIfDiff('fallbackProviders', fallbackInput, (cfg.fallbackProviders || []).join(', '));
@@ -515,6 +524,7 @@ export function buildConfigForm(
       if (touched.has('hoverTranslate')) next.hoverTranslate = hoverTranslateChk.checked;
       if (touched.has('inputTranslate')) next.inputTranslate = inputTranslateChk.checked;
       if (touched.has('translationStyle')) next.translationStyle = translationStyleSel.value;
+      if (touched.has('ttsVoiceName')) next.ttsVoiceName = ttsVoiceSel.value;
       if (touched.has('themeMode')) {
         const mode = themeModeSel.value;
         next.themeMode = mode === 'light' || mode === 'dark' ? mode : 'auto';
@@ -653,6 +663,7 @@ export function buildConfigForm(
     inputTranslateChk,
     translationStyleSel,
     themeModeSel,
+    ttsVoiceSel,
     translateModeSel,
   ].forEach((el) =>
     el.addEventListener('change', () => {
@@ -695,9 +706,45 @@ export function buildConfigForm(
     { once: true },
   );
 
+  // ===== 朗读人声下拉：按目标语言动态填充（异步语音列表就绪后重刷）=====
+  function refreshVoiceOptions() {
+    if (!ttsVoiceSel) return;
+    const want = cfg.ttsVoiceName || '';
+    const tag = langTagOf(targetSel.value || cfg.targetLang);
+    const voices = listVoicesForLang(tag);
+    const prev = ttsVoiceSel.value;
+    ttsVoiceSel.replaceChildren();
+    const autoOpt = document.createElement('option');
+    autoOpt.value = '';
+    autoOpt.textContent =
+      voices.length > 0 ? `自动选择最佳人声（${voices.length} 个可选）` : '自动（使用系统默认人声）';
+    ttsVoiceSel.appendChild(autoOpt);
+    for (const v of voices) {
+      const o = document.createElement('option');
+      o.value = v.name;
+      o.textContent = v.online ? `★ ${v.name}` : v.name;
+      ttsVoiceSel.appendChild(o);
+    }
+    // 恢复已存人声；若该人声不属于当前语言列表则回退自动
+    if (want && voices.some((v) => v.name === want)) ttsVoiceSel.value = want;
+    else ttsVoiceSel.value = prev && voices.some((v) => v.name === prev) ? prev : '';
+  }
+  onVoicesReady(() => {
+    try {
+      refreshVoiceOptions();
+    } catch {
+      /* 下拉刷新失败不影响其他设置 */
+    }
+  });
+  targetSel.addEventListener('change', () => {
+    try {
+      refreshVoiceOptions();
+    } catch {
+      /* 忽略 */
+    }
+  });
   // 缓存管理：显示当前条数；清空后立即刷新并提示。
-  async function refreshCacheCount() {
-    if (!cacheCountEl) return;
+  async function refreshCacheCount() {    if (!cacheCountEl) return;
     try {
       const stats = getCacheStats();
       cacheCountEl.textContent = String(stats?.count ?? 0);

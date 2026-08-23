@@ -112,8 +112,9 @@ export default defineContentScript({
     // 站点级「总是自动翻译此站」显式开启时，覆盖全局手动模式——该站表现为完整自动翻译
     let thisSiteAutoOverride = false;
     const effectiveAutoMode = () => currentTranslateMode === 'auto' || thisSiteAutoOverride;
-  // 当前目标语言（TTS 朗读按它选发音）：配置加载与变化时同步。
+  // 当前目标语言与人声（TTS 朗读使用）：配置加载与变化时同步。
   let currentTargetLang = '中文';
+  let currentTtsVoice = '';
     let hoverTranslateEnabled = true;
     let inputTranslateEnabled = true;
     // 流式开关（设置页「边生成边显示」）：关掉后单条交互直接走普通请求，不再开长连接。
@@ -197,6 +198,7 @@ export default defineContentScript({
           if (v) {
             setThemeOverride(v.themeMode === 'light' || v.themeMode === 'dark' ? v.themeMode : 'auto');
             if (typeof v.targetLang === 'string') currentTargetLang = v.targetLang;
+            currentTtsVoice = typeof v.ttsVoiceName === 'string' ? v.ttsVoiceName : '';
           }
           if (v && typeof v.translationStyle === 'string') currentTranslationStyle = v.translationStyle;
           if (v && (v.translateMode === 'auto' || v.translateMode === 'manual')) currentTranslateMode = v.translateMode;
@@ -225,6 +227,7 @@ export default defineContentScript({
         // 主题手动覆盖（auto/light/dark）：影响后续新建的所有浮层。
         setThemeOverride(v.themeMode === 'light' || v.themeMode === 'dark' ? v.themeMode : 'auto');
         if (typeof v.targetLang === 'string') currentTargetLang = v.targetLang;
+        currentTtsVoice = typeof v.ttsVoiceName === 'string' ? v.ttsVoiceName : '';
         hoverTranslateEnabled = v.hoverTranslate !== false;
         inputTranslateEnabled = v.inputTranslate !== false;
         streamingEnabled = v.streaming !== false;
@@ -654,6 +657,30 @@ export default defineContentScript({
 
     type PlacementStrategy = 'inside' | 'afterend';
 
+    // 「嵌入原文块内部」时，若锚点自身是行向 flex/grid 容器，直接 append 会让
+    // 译文排到右侧而不是下方。沿最后一个元素子级向下潜行，直到找到纵向堆叠
+    // 的容器再落点（典型：卡片 flex 行 > 内容列 > 段落）。
+    function findVerticalHost(start: Element): HTMLElement {
+      let host = start as HTMLElement;
+      for (let depth = 0; depth < 6; depth++) {
+        const kids = host.children;
+        if (kids.length === 0) break;
+        const cs = getComputedStyle(host);
+        let horizontal = false;
+        if (cs.display.includes('flex')) {
+          horizontal = !(cs.flexDirection || 'row').includes('column');
+        } else if (cs.display.includes('grid')) {
+          const cols = (cs.gridTemplateColumns || '').split(' ').filter(Boolean).length;
+          horizontal = cols > 1;
+        }
+        if (!horizontal) break;
+        const last = kids[kids.length - 1] as HTMLElement | undefined;
+        if (!last || last.tagName === 'BR') break;
+        host = last;
+      }
+      return host;
+    }
+
     function computePlacementStrategies(el: Element): PlacementStrategy[] {
       const cs = getComputedStyle(el);
       const parentCs = el.parentElement ? getComputedStyle(el.parentElement) : null;
@@ -693,7 +720,21 @@ export default defineContentScript({
       if (n.top < a.top - 12) return false; // 跑到了锚点上方
       const drifted =
         n.right < a.left - 8 || n.left > a.right + Math.max(a.width * 0.75, 60);
-      return !drifted; // 落进相邻列视为错位
+      if (drifted) return false; // 落进相邻列视为错位
+      // 「嵌入内部」策略下被固定高度 + hidden 祖先裁剪：节点底部越出锚点底部
+      // 且存在实际滚动的 overflow 裁剪祖先把超界部分藏掉 → 视为不可见，降级到外部。
+      if (n.bottom > a.bottom + 4 && getComputedStyle(anchor).position !== 'absolute') {
+        let p = anchor.parentElement;
+        for (let d = 0; p && p !== document.documentElement && d < 5; p = p.parentElement, d++) {
+          const o = getComputedStyle(p).overflowY;
+          const clips = o === 'hidden' || o === 'clip' || o === 'scroll' || o === 'auto';
+          const pr = p.getBoundingClientRect();
+          if (clips && pr.height + 2 < p.scrollHeight && n.bottom > pr.bottom + 2) {
+            return false;
+          }
+        }
+      }
+      return true;
     }
 
     function applyWithFallback(
@@ -704,8 +745,12 @@ export default defineContentScript({
     ): void {
       const strategy = strategies[index];
       if (!strategy) return;
-      if (strategy === 'inside') el.appendChild(node);
-      else el.insertAdjacentElement('afterend', node);
+      if (strategy === 'inside') {
+        // 行向 flex/grid 容器内沿最后子级纵向下潜，避免译文排到右侧
+        findVerticalHost(el).appendChild(node);
+      } else {
+        el.insertAdjacentElement('afterend', node);
+      }
       // 渲染后测量真实几何位置；错位则移除并尝试下一策略（最多两轮降级）。
       requestAnimationFrame(() => {
         if (!node.isConnected) return;
@@ -1873,7 +1918,7 @@ export default defineContentScript({
             copy.textContent = '复制失败';
           }
         });
-        const speakBtn = createSpeakButton(() => translation, () => currentTargetLang);
+        const speakBtn = createSpeakButton(() => translation, () => currentTargetLang, { getVoiceName: () => currentTtsVoice });
         speakBtn.className = 'action';
         speakBtn.style.minHeight = '28px';
         actions.appendChild(speakBtn);
@@ -2569,9 +2614,16 @@ export default defineContentScript({
       const text = textOfBlock(el);
       if (text.length < 2) return;
       if (el.querySelector(':scope > .ot-translation')) return;
-      hoverBubble = createHoverBubble(text, (pinned) => {
-        hoverPinned = pinned;
-      });
+      hoverBubble = createHoverBubble(
+        text,
+        (pinned) => {
+          hoverPinned = pinned;
+        },
+        {
+          getTargetLang: () => currentTargetLang,
+          getVoiceName: () => currentTtsVoice,
+        },
+      );
       document.documentElement.appendChild(hoverBubble.host);
       const rect = el.getBoundingClientRect();
       const bw = 280;
@@ -2799,7 +2851,7 @@ export default defineContentScript({
               copy.textContent = '复制失败';
             }
           });
-          const speakBtn = createSpeakButton(() => res.translation, () => currentTargetLang);
+          const speakBtn = createSpeakButton(() => res.translation, () => currentTargetLang, { getVoiceName: () => currentTtsVoice });
           Object.assign(speakBtn.style, {
             display: 'block',
             marginTop: '8px',
