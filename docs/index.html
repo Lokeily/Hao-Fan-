@@ -1,414 +1,581 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>好翻（Open Translator CN）— 开源免费的沉浸式双语网页翻译</title>
-    <meta
-      name="description"
-      content="好翻（Open Translator CN）是一款开源、免费、直连自选 AI 的沉浸式双语网页翻译扩展：保留网页原文，把译文自然地嵌进原文里逐段对照阅读；API Key 仅存本地，翻译请求直连你选择的服务商，无遥测、无广告追踪。"
-    />
-    <meta property="og:title" content="好翻（Open Translator CN）" />
-    <meta
-      property="og:description"
-      content="开源、免费、直连自选 AI 的沉浸式双语网页翻译扩展。API Key 本地保存，翻译请求直连所选服务商。"
-    />
-    <link rel="icon" type="image/png" href="assets/img/icon-128.png" />
-    <link rel="apple-touch-icon" href="assets/img/icon-128.png" />
-    <script>document.documentElement.classList.add('js');</script>
-    <link rel="stylesheet" href="assets/css/style.css" />
-  </head>
-  <body>
-    <div class="scroll-progress"></div>
-    <nav class="nav">
-      <div class="nav-inner">
-        <a class="brand" href="index.html">
-          <img src="assets/img/icon-128.png" alt="好翻" />
-          <span>好翻</span>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>好翻 Haofan — 开源免费的沉浸式双语网页翻译 | 直连你的 AI</title>
+<meta name="description" content="好翻是一款开源、免费、直连自选 AI 的沉浸式双语网页翻译扩展：原文保留，译文逐段嵌在下方对照阅读。支持 12 家 AI 引擎 + 3 家传统机翻，API Key 仅存本机，无遥测、无额度限制。" />
+<meta property="og:title" content="好翻 Haofan — 开源免费的沉浸式双语网页翻译" />
+<meta property="og:description" content="沉浸式双语对照 · 直连你自己的 AI · 开源 MIT · 无遥测。Chrome / Edge / Firefox 全平台支持。" />
+<meta property="og:type" content="website" />
+<link rel="icon" type="image/png" href="assets/img/icon-128.png" />
+<link rel="apple-touch-icon" href="assets/img/icon-128.png" />
+<style>
+:root{
+  --bg:#f7f8fa; --bg2:#ffffff; --surface:#ffffff; --surface2:#f1f3f6;
+  --text:#101418; --text2:#5b6470; --muted:#8a93a0;
+  --border:rgba(16,20,24,.09); --border2:rgba(16,20,24,.14);
+  --accent:#0a6cff; --accent2:#00c896; --accent-soft:rgba(10,108,255,.08);
+  --warn:#ff9f0a;
+  --shadow-sm:0 1px 2px rgba(16,20,24,.05),0 2px 8px rgba(16,20,24,.05);
+  --shadow-md:0 4px 14px rgba(16,20,24,.07),0 12px 40px rgba(16,20,24,.08);
+  --radius:16px;
+  --grad:linear-gradient(135deg,#0a6cff 0%,#00b4e0 55%,#00c896 100%);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0b0e13; --bg2:#0f131a; --surface:#151a22; --surface2:#1b212b;
+  --text:#ecf1f7; --text2:#9aa6b4; --muted:#6b7684;
+  --border:rgba(236,241,247,.09); --border2:rgba(236,241,247,.16);
+  --accent-soft:rgba(10,108,255,.14);
+}}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  line-height:1.65;-webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--accent-soft)}
+img{max-width:100%}
+a{color:inherit;text-decoration:none}
+.container{width:min(1120px,92%);margin:0 auto}
+
+/* ===== 导航 ===== */
+.nav{position:sticky;top:0;z-index:100;background:color-mix(in srgb,var(--bg) 78%,transparent);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--border)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:60px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:17px;letter-spacing:-.01em}
+.brand img{width:28px;height:28px;border-radius:7px}
+.nav-links{display:flex;align-items:center;gap:4px}
+.nav-links a.op{padding:7px 13px;border-radius:9px;font-size:14px;color:var(--text2);transition:.18s}
+.nav-links a.op:hover{color:var(--text);background:var(--accent-soft)}
+.nav-gh{display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:9px;font-size:13.5px;color:var(--text2);border:1px solid var(--border);transition:.18s}
+.nav-gh:hover{color:var(--text);border-color:var(--border2)}
+.nav-cta{padding:8px 16px;border-radius:10px;background:var(--grad);color:#fff;font-size:14px;font-weight:600;box-shadow:0 4px 14px rgba(10,108,255,.32);transition:.18s}
+.nav-cta:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(10,108,255,.42)}
+.nav-toggle{display:none;background:none;border:0;cursor:pointer;padding:8px}
+.nav-toggle span{display:block;width:20px;height:2px;background:var(--text);margin:4px 0;border-radius:2px;transition:.2s}
+@media(max-width:860px){
+  .nav-toggle{display:block}
+  .nav-links{position:absolute;top:60px;left:0;right:0;flex-direction:column;align-items:stretch;
+    background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 5%;display:none}
+  .nav-links.open{display:flex}
+  .nav-links a.op{padding:12px}
+}
+
+/* ===== Hero ===== */
+.hero{position:relative;overflow:hidden;text-align:center;padding:84px 0 40px}
+.hero-bg{position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(52% 44% at 50% -6%,rgba(10,108,255,.14),transparent 70%),
+    radial-gradient(36% 34% at 82% 12%,rgba(0,200,150,.11),transparent 70%),
+    radial-gradient(30% 30% at 14% 18%,rgba(122,92,255,.09),transparent 70%);}
+.hero-inner{position:relative;max-width:880px;margin:0 auto;padding:0 5%}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 15px;border-radius:999px;
+  border:1px solid var(--border2);background:var(--surface);font-size:13px;color:var(--text2);
+  box-shadow:var(--shadow-sm)}
+.pill .dot{width:7px;height:7px;border-radius:50%;background:var(--accent2);box-shadow:0 0 0 4px rgba(0,200,150,.16)}
+.hero h1{margin:26px 0 18px;font-size:clamp(34px,5.6vw,58px);line-height:1.16;letter-spacing:-.022em;font-weight:800}
+.grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .sub{max-width:680px;margin:0 auto 30px;font-size:clamp(15px,2vw,18.5px);color:var(--text2)}
+.hero-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:22px}
+.btn{display:inline-flex;align-items:center;gap:9px;padding:13px 26px;border-radius:13px;font-size:15.5px;font-weight:650;transition:.18s;cursor:pointer}
+.btn-primary{background:var(--grad);color:#fff;box-shadow:0 8px 26px rgba(10,108,255,.35)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(10,108,255,.45)}
+.btn-ghost{border:1px solid var(--border2);background:var(--surface);color:var(--text)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.btn svg{flex:none}
+.dl-meta{font-size:12.5px;color:var(--muted);margin-bottom:34px}
+.dl-meta code{background:var(--surface2);padding:1px 7px;border-radius:6px;font-size:12px}
+
+/* 浏览器窗口 mockup */
+.showcase{max-width:900px;margin:0 auto;padding:0 5%;position:relative}
+.win{background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;
+  box-shadow:var(--shadow-md);text-align:left}
+.win-bar{display:flex;align-items:center;gap:7px;padding:11px 15px;border-bottom:1px solid var(--border);background:var(--surface2)}
+.win-bar i{width:11px;height:11px;border-radius:50%;background:var(--border2)}
+.win-bar i:nth-child(1){background:#ff5f57}.win-bar i:nth-child(2){background:#febc2e}.win-bar i:nth-child(3){background:#28c840}
+.win-url{margin-left:10px;flex:1;font-size:12px;color:var(--muted);background:var(--bg);
+  border:1px solid var(--border);border-radius:7px;padding:3px 11px;max-width:340px}
+.win-body{padding:22px clamp(16px,4vw,34px) 26px;font-size:14.5px;line-height:1.85}
+.src{color:var(--text2)}
+.tgt{color:var(--text);font-weight:550;margin-bottom:14px;padding-left:12px;border-left:3px solid;
+  border-image:linear-gradient(180deg,#0a6cff,#00c896) 1;}
+.tag-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.tag{font-size:11.5px;padding:3px 10px;border-radius:999px;border:1px solid var(--border);color:var(--text2)}
+
+/* ===== 数据条 ===== */
+.stats{border-block:1px solid var(--border);background:var(--bg2)}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:26px 0;text-align:center}
+.stat b{display:block;font-size:clamp(22px,3vw,30px);font-weight:800;letter-spacing:-.02em;
+  background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat span{font-size:13px;color:var(--text2)}
+@media(max-width:700px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* ===== Sections ===== */
+section{padding:74px 0}
+.sec-head{text-align:center;max-width:720px;margin:0 auto 46px}
+.kicker{display:inline-block;font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--accent);
+  text-transform:uppercase;margin-bottom:12px}
+.sec-head h2{font-size:clamp(27px,3.6vw,38px);letter-spacing:-.02em;font-weight:800;margin-bottom:14px}
+.sec-head p{color:var(--text2);font-size:16px}
+
+/* 特性卡片 */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:18px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:24px;transition:.2s;position:relative}
+.card:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);border-color:var(--border2)}
+.card .ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;margin-bottom:14px;
+  background:var(--accent-soft);color:var(--accent)}
+.card.teal .ico{background:rgba(0,200,150,.12);color:#00a37c}
+.card.violet .ico{background:rgba(122,92,255,.12);color:#7a5cff}
+.card.amber .ico{background:rgba(255,159,10,.13);color:#e8890c}
+.card h3{font-size:16.5px;margin-bottom:7px;letter-spacing:-.01em}
+.card p{font-size:13.8px;color:var(--text2)}
+.card .new{position:absolute;top:16px;right:16px;font-size:10.5px;font-weight:700;color:#00a37c;
+  background:rgba(0,200,150,.12);padding:2px 9px;border-radius:999px}
+
+/* 对比表 */
+.compare-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--surface);box-shadow:var(--shadow-sm)}
+table.compare{width:100%;border-collapse:collapse;font-size:14.2px;min-width:600px}
+.compare th,.compare td{padding:14px 18px;text-align:left;border-bottom:1px solid var(--border)}
+.compare thead th{font-size:13px;color:var(--text2);font-weight:650;background:var(--surface2)}
+.compare tbody tr:last-child td{border-bottom:0}
+.compare td:first-child{color:var(--text2);white-space:nowrap}
+.col-hf{background:var(--accent-soft);font-weight:600}
+.compare thead th.col-hf{color:var(--accent)}
+.yes{color:#00a37c;font-weight:700}
+.no{color:var(--muted)}
+
+/* 工作原理 pipeline */
+.pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;counter-reset:p}
+.step{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 14px;
+  text-align:center;position:relative;counter-increment:p}
+.step::before{content:counter(p);position:absolute;top:-11px;left:50%;transform:translateX(-50%);
+  width:22px;height:22px;border-radius:50%;background:var(--grad);color:#fff;font-size:11.5px;
+  font-weight:700;display:grid;place-items:center;box-shadow:0 2px 8px rgba(10,108,255,.35)}
+.step b{display:block;font-size:13.8px;margin:4px 0 5px}
+.step span{font-size:11.8px;color:var(--text2);line-height:1.5;display:block}
+
+/* 引擎 chips */
+.chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:860px;margin:0 auto}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:9px 17px;border-radius:999px;
+  border:1px solid var(--border);background:var(--surface);font-size:13.5px;color:var(--text2);
+  transition:.18s}
+.chip:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-2px)}
+.chip.free{border-style:dashed}
+.chip-note{text-align:center;margin-top:18px;font-size:12.5px;color:var(--muted)}
+
+/* 下载 */
+.dl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;max-width:900px;margin:0 auto}
+.dl-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:28px 24px;text-align:center;transition:.2s}
+.dl-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);border-color:var(--accent)}
+.dl-card .brow{font-size:34px;line-height:1}
+.dl-card h3{font-size:17px;margin:12px 0 5px}
+.dl-card p{font-size:12.8px;color:var(--text2);margin-bottom:16px}
+.dl-card .btn{padding:10px 20px;font-size:14px;width:100%;justify-content:center}
+.dl-steps{text-align:center;margin-top:26px;font-size:13.5px;color:var(--text2)}
+.dl-steps code{background:var(--surface2);padding:2px 9px;border-radius:7px;font-size:12.5px}
+
+/* FAQ */
+.faq{max-width:780px;margin:0 auto}
+details.q{border:1px solid var(--border);border-radius:13px;background:var(--surface);
+  margin-bottom:11px;overflow:hidden;transition:.18s}
+details.q[open]{border-color:var(--accent)}
+details.q summary{cursor:pointer;list-style:none;padding:17px 20px;font-weight:650;font-size:15px;
+  display:flex;justify-content:space-between;align-items:center;gap:12px}
+details.q summary::-webkit-details-marker{display:none}
+details.q summary::after{content:"+";font-size:19px;color:var(--accent);transition:.2s;flex:none}
+details.q[open] summary::after{transform:rotate(45deg)}
+details.q .a{padding:0 20px 18px;color:var(--text2);font-size:14.2px;line-height:1.75}
+details.q .a b{color:var(--text)}
+
+/* CTA 尾部 */
+.cta{background:var(--grad);border-radius:24px;max-width:1000px;margin:0 auto;padding:clamp(36px,6vw,64px);
+  text-align:center;color:#fff;position:relative;overflow:hidden}
+.cta::before{content:"";position:absolute;inset:0;
+  background:radial-gradient(46% 70% at 78% 18%,rgba(255,255,255,.16),transparent 60%)}
+.cta h2{font-size:clamp(25px,3.6vw,36px);letter-spacing:-.02em;position:relative}
+.cta p{opacity:.93;margin:12px 0 26px;font-size:15.5px;position:relative}
+.cta .btn{background:#fff;color:#0a6cff;position:relative}
+.cta .btn:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.22)}
+
+/* Footer */
+footer{border-top:1px solid var(--border);margin-top:74px;padding:38px 0 44px;color:var(--text2);font-size:13.5px}
+.foot-grid{display:flex;flex-wrap:wrap;justify-content:space-between;gap:26px}
+.foot-brand{max-width:300px}
+.foot-brand .brand{margin-bottom:9px}
+footer h4{font-size:13px;color:var(--text);margin-bottom:10px;font-weight:700}
+footer ul{list-style:none}
+footer li{margin:6px 0}
+footer li a:hover{color:var(--accent)}
+.copyright{text-align:center;margin-top:30px;color:var(--muted);font-size:12.5px}
+
+/* Reveal 动画 */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s ease}
+.reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}}
+
+@media(max-width:640px){
+  section{padding:56px 0}
+  .hero{padding:64px 0 26px}
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== 导航 ===================== -->
+<nav class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="./">
+      <img src="assets/img/icon-128.png" alt="好翻 logo" />
+      <span>好翻<i style="font-style:normal;color:var(--text2);font-weight:600;font-size:12px;margin-left:2px">Haofan</i></span>
+    </a>
+    <div class="nav-right" style="display:flex;align-items:center;gap:8px">
+      <button class="nav-toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false"><span></span><span></span><span></span></button>
+      <div class="nav-links" id="navLinks">
+        <a class="op" href="#features">功能</a>
+        <a class="op" href="#compare">对比</a>
+        <a class="op" href="#how">工作原理</a>
+        <a class="op" href="#engines">引擎</a>
+        <a class="op" href="#faq">常见问题</a>
+        <a class="nav-gh" href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
         </a>
-        <div class="nav-right">
-          <button class="nav-toggle" aria-label="菜单" aria-expanded="false">
-            <span></span><span></span><span></span>
-          </button>
-          <div class="nav-links">
-            <a href="index.html" class="active">首页</a>
-            <a href="features.html">功能特性</a>
-            <a href="providers.html">翻译服务</a>
-            <a href="install.html">安装指南</a>
-            <a
-              class="nav-github"
-              href="https://github.com/Lokeily/hao-fan"
-              target="_blank"
-              rel="noopener"
-              aria-label="在 GitHub 上查看好翻"
-            >
-              <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
-            </a>
-            <a
-              class="nav-cta"
-              href="https://github.com/Lokeily/hao-fan/releases/latest"
-              target="_blank"
-              rel="noopener"
-              >下载</a
-            >
-          </div>
-        </div>
-      </div>
-    </nav>
-
-    <header class="hero">
-      <div class="hero-aurora" aria-hidden="true"></div>
-      <div class="eyebrow">🌍 开源 · 免费 · 直连自选 AI</div>
-      <h1>沉浸式双语网页翻译，<br /><span class="grad">把译文自然地嵌进原文里</span></h1>
-      <p class="sub">
-        好翻（Open Translator CN）把译文自然地嵌进原文里 📖：原文原封不动，译文逐段出现在下方，边读边对照、思路不打断。开源免费、无额度限制；API Key 只存本地、翻译请求直连你选的服务商，不经任何中转。
-      </p>
-      <div class="hero-actions">
-        <a
-          class="btn btn-primary js-download"
-          href="https://github.com/Lokeily/hao-fan/releases/latest"
-          target="_blank"
-          rel="noopener"
-          >下载扩展（<span class="js-latest-version">v0.1.23</span>）</a
-        >
-        <a class="btn btn-ghost" href="install.html">查看安装方法</a>
-      </div>
-      <div class="install-row">
-        <span class="install-row-label">在各浏览器中安装：</span>
-        <a class="install-chip" href="install.html#chrome">🌐 Chrome</a>
-        <a class="install-chip" href="install.html#chrome">🅴 Edge</a>
-        <a class="install-chip" href="install.html#firefox">🦊 Firefox</a>
-        <a class="install-chip" href="install.html#troubleshoot">⚙️ 其他浏览器</a>
-      </div>
-      <div class="hero-badges">
-        <span class="badge">Chrome · MV3</span>
-        <span class="badge">Edge 兼容</span>
-        <span class="badge">Firefox</span>
-        <span class="badge">MIT 开源</span>
-        <span class="badge">无遥测 · 无广告追踪</span>
-        <span class="badge">🏆 开源社区推荐</span>
-      </div>
-      <div class="hero-note">想先体验？在设置里选择「Google 翻译」即可免 Key 使用。</div>
-      <div class="hero-visual">
-        <div class="hero-visual-inner">
-          <div class="win">
-            <div class="win-bar">
-              <span></span><span></span><span></span>
-              <span class="win-url">arxiv.org/abs/2406.12345</span>
-            </div>
-            <div class="win-body">
-              <p class="src">
-                We propose a lightweight architecture that reduces inference
-                latency by 38% while preserving accuracy.
-              </p>
-              <p class="tgt">
-                我们提出了一种轻量级架构，在保持精度的同时，将推理延迟降低了 38%。
-              </p>
-              <p class="src">
-                Our method generalizes across domains without additional
-                fine-tuning.
-              </p>
-              <p class="tgt">
-                我们的方法可在不同领域间泛化，无需额外的微调。
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </header>
-
-    <div class="hero-rule" aria-hidden="true"></div>
-
-    <div class="trust">
-      <span><span class="dot">●</span> 无中心：翻译引擎由你定</span>
-      <span><span class="dot">●</span> 无遥测 · 无广告追踪</span>
-      <span><span class="dot">●</span> 可解释：行为可溯源</span>
-      <span><span class="dot">●</span> API Key 仅存本地</span>
-      <span><span class="dot">●</span> 直连服务商，不经中转</span>
-      <span><span class="dot">●</span> 开源 MIT 许可证</span>
-    </div>
-
-    <div class="marquee" aria-hidden="true">
-      <div class="marquee-track">
-        <span class="prov">DeepSeek</span>
-        <span class="prov">OpenAI</span>
-        <span class="prov">Google Gemini</span>
-        <span class="prov">智谱 GLM</span>
-        <span class="prov">腾讯混元</span>
-        <span class="prov">通义千问</span>
-        <span class="prov">Kimi</span>
-        <span class="prov">百川智能</span>
-        <span class="prov">豆包</span>
-        <span class="prov">Ollama 本地模型</span>
-        <span class="prov">OpenRouter</span>
-        <span class="prov">Google 翻译</span>
-        <span class="prov">DeepL</span>
-        <span class="prov">Microsoft 翻译</span>
-        <span class="prov">DeepSeek</span>
-        <span class="prov">OpenAI</span>
-        <span class="prov">Google Gemini</span>
-        <span class="prov">智谱 GLM</span>
-        <span class="prov">腾讯混元</span>
-        <span class="prov">通义千问</span>
-        <span class="prov">Kimi</span>
-        <span class="prov">百川智能</span>
-        <span class="prov">豆包</span>
-        <span class="prov">Ollama 本地模型</span>
-        <span class="prov">OpenRouter</span>
-        <span class="prov">Google 翻译</span>
-        <span class="prov">DeepL</span>
-        <span class="prov">Microsoft 翻译</span>
+        <a class="nav-cta" href="#download">免费下载</a>
       </div>
     </div>
+  </div>
+</nav>
 
-    <section class="block" id="stats">
-      <div class="container">
-        <div class="section-head reveal reveal--blur">
-          <p class="section-eyebrow reveal">深受信赖</p>
-          <h2><span class="underline-grow">数据不会说谎</span></h2>
-          <p>开源、免费、本地优先——每一处承诺，都摊开给你看。</p>
-        </div>
-        <div class="stats reveal">
-          <div class="stat">
-            <div class="num" data-count="12">12</div>
-            <div class="label">内置 AI 翻译服务</div>
-          </div>
-          <div class="stat">
-            <div class="num" data-count="19">19</div>
-            <div class="label">项已实现功能</div>
-          </div>
-          <div class="stat">
-            <div class="num" data-count="0">0</div>
-            <div class="label">收集的用户数据</div>
-          </div>
-          <div class="stat">
-            <div class="num" data-count="100" data-suffix="%">100%</div>
-            <div class="label">开源（MIT 许可证）</div>
-          </div>
+<!-- ===================== Hero ===================== -->
+<header class="hero">
+  <div class="hero-bg" aria-hidden="true"></div>
+  <div class="hero-inner">
+    <span class="pill"><span class="dot"></span>v0.2.0 正式发布 · 新增朗读译文 / 翻译历史 / 缓存管理</span>
+    <h1>读外文网页，<br />像读中文一样<span class="grad">自然流畅</span></h1>
+    <p class="sub">
+      好翻把译文逐段嵌入原文下方，沉浸式双语对照阅读 —— 原文不动、思路不打断。
+      <strong>开源免费</strong>、直连你自己的 AI 服务商，API Key 仅存本机，无遥测、无额度限制。
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        免费下载 <span id="ver" style="font-weight:450;opacity:.85">v0.2.0</span>
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        查看源码
+      </a>
+    </div>
+    <p class="dl-meta">支持 <b>Chrome · Edge · Firefox</b> ｜ 没有配置 Key？内置「Google 翻译」免 Key 直接体验</p>
+  </div>
+
+  <!-- 双语对照 mockup -->
+  <div class="showcase">
+    <div class="win">
+      <div class="win-bar"><i></i><i></i><i></i><span class="win-url">https://arxiv.org/abs/2406.12345</span><span class="tag">好翻已启用</span></div>
+      <div class="win-body">
+        <p class="src">We propose a lightweight architecture that reduces inference latency by 38% while preserving accuracy.</p>
+        <p class="tgt">我们提出了一种轻量级架构，在保持精度的同时，将推理延迟降低了 38%。</p>
+        <p class="src">Our method generalizes across domains without additional fine-tuning, and the identifier <code style="background:var(--surface2);padding:1px 6px;border-radius:5px;font-size:12.5px">useStreamingInference</code> remains untranslated.</p>
+        <p class="tgt">我们的方法无需额外微调即可跨领域泛化，标识符 <code style="background:var(--surface2);padding:1px 6px;border-radius:5px;font-size:12.5px">useStreamingInference</code> 保持原样不被翻译。</p>
+        <div class="tag-row">
+          <span class="tag">⚡ 流式输出 · 首字即显</span>
+          <span class="tag">🧠 上下文感知</span>
+          <span class="tag">✅ 数字 / 代码保真</span>
+          <span class="tag">🔊 一键朗读</span>
         </div>
       </div>
-    </section>
+    </div>
+  </div>
+</header>
 
-    <section class="showcase" id="demo">
-      <div class="container">
-        <div class="section-head reveal reveal--blur">
-          <p class="section-eyebrow reveal">真实效果</p>
-          <h2><span class="underline-grow">📖 原文 + 译文，并排对照</span></h2>
-          <p>这是好翻在网页上的真实工作样貌：原文原封不动，译文以流式方式逐字出现在原文下方。对照着读，思路不打断。</p>
-        </div>
-        <div class="bili-toggle" data-bili-toggle role="group" aria-label="对照模式">
-          <button type="button" data-mode="both" class="active">双语</button>
-          <button type="button" data-mode="original">仅原文</button>
-          <button type="button" data-mode="translated">仅译文</button>
-        </div>
-        <div class="demo reveal reveal--blur">
-          <div class="demo-bar">
-            <span></span><span></span><span></span>
-            <span class="demo-url">arxiv.org/abs/2406.12345</span>
-            <span class="demo-engine"><i class="live-dot"></i>引擎 <b class="js-engine">DeepSeek</b></span>
-          </div>
-          <div class="demo-body">
-            <p class="src">We propose a lightweight architecture that reduces inference latency by 38% while preserving accuracy.</p>
-            <p class="tgt" data-typetext="我们提出了一种轻量级架构，在保持精度的同时，将推理延迟降低了 38%。" data-loop>我们提出了一种轻量级架构，在保持精度的同时，将推理延迟降低了 38%。</p>
-            <p class="src">Our method generalizes across domains without additional fine-tuning.</p>
-            <p class="tgt" data-typetext="我们的方法可在不同领域间泛化，无需额外的微调。" data-loop>我们的方法可在不同领域间泛化，无需额外的微调。</p>
-          </div>
-        </div>
+<!-- ===================== 数据条 ===================== -->
+<div class="stats">
+  <div class="container stats-grid">
+    <div class="stat"><b>15</b><span>翻译引擎（12 AI + 3 机翻）</span></div>
+    <div class="stat"><b>MIT</b><span>完整开源 · 可审计</span></div>
+    <div class="stat"><b>0</b><span>遥测 · 广告追踪 · 使用额度</span></div>
+    <div class="stat"><b>96</b><span>自动化测试全绿（63 单测 + 33 E2E）</span></div>
+  </div>
+</div>
+
+<!-- ===================== 功能特性 ===================== -->
+<section id="features">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="kicker">Features</span>
+      <h2>为「读懂一篇外文网页」而生的每一处细节</h2>
+      <p>不是简单调个接口，而是从提取、遮罩、路由到渲染的完整翻译流水线。</p>
+    </div>
+    <div class="grid">
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h20v12H2z" rx="2"/><path d="M6 8h8M6 12h5M14 12h4"/></svg></div>
+        <h3>沉浸式双语对照</h3>
+        <p>原文原封不动，译文贴在每段正下方随滚动跟随；双栏、网格、纯文本块都各归其位，不破坏任何排版。</p>
       </div>
-    </section>
-
-    <section class="block" id="whofor">
-      <div class="container">
-        <div class="section-head reveal reveal--blur">
-          <p class="section-eyebrow reveal">适用于每一个人</p>
-          <h2><span class="underline-grow">🙌 适合谁用</span></h2>
-          <p>好翻不挑场景——只要你在读外文网页，它都能让对照阅读更顺。看看下面这几类，有没有你的影子。</p>
-        </div>
-        <div class="features" data-stagger>
-          <div class="card tilt reveal"><h3>学生 / 研究者</h3><p>读外文学术论文、教材与综述，译文嵌在原文下方，术语、公式、引用不断层，读得进去也查得回来。</p></div>
-          <div class="card tilt reveal"><h3>开发者</h3><p>啃英文文档、RFC、Stack Overflow，译文可编辑，顺手把「团队黑话」沉淀进个人术语表。</p></div>
-          <div class="card tilt reveal"><h3>跨境 / 外贸</h3><p>看海外商品页、客户邮件、行业资讯，直连你选的引擎，重要信息不再卡在语言上。</p></div>
-          <div class="card tilt reveal"><h3>内容创作者</h3><p>借鉴外语素材、对标竞品，译文可改可复用，二次创作不用先过一遍「机翻味」。</p></div>
-          <div class="card tilt reveal"><h3>日常阅读者</h3><p>刷外文博客、新闻、社区，选「Google 翻译」即可免 Key 使用，装上就能读。</p></div>
-          <div class="card tilt reveal"><h3>隐私至上者</h3><p>本地优先、无账号、无遥测，翻译请求直连服务商，数据始终留在你的浏览器里。</p></div>
-        </div>
+      <div class="card teal reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+        <h3>流式输出</h3>
+        <p>划词、悬停、点段落、输入框四处全部逐字回填，首字毫秒级出现；通道异常自动回退普通请求，不漏译。</p>
       </div>
-    </section>
-
-    <section class="block" id="features">
-      <div class="container">
-          <div class="section-head reveal reveal--blur">
-          <p class="section-eyebrow reveal">核心能力</p>
-            <h2><span class="underline-grow">✨ 基本功能</span></h2>
-            <p>好翻做的事其实很纯粹：保留网页原文，把译文自然地嵌进原文里，让你边读边对照。下面是它最核心的几项能力。</p>
-          </div>
-        <div class="features" data-stagger>
-          <div class="card tilt reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-2-1.4-4-1.4-6-1v13c2 .6 4 .6 6-1 2 1.6 4 1.6 6 1V5c-2 .4-4 .4-6-1Z"/><path d="M12 6v13"/></svg></div><h3>沉浸式双语对照</h3><p>原文保留，译文显示在原文下方，随页面滚动自然跟随，对照阅读不打断思路。</p></div>
-          <div class="card tilt reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 3L4 14h7l-1 7 9-11h-7l1-7Z"/></svg></div><h3>流式输出</h3><p>首段边生成边显示，首字延迟低至毫秒级（基线实测约 90ms），长文也不干等。</p></div>
-          <div class="card tilt reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h11M4 12h7M4 17h11"/><path d="M17 4l3 3-3 3M20 20l-3-3 3-3"/></svg></div><h3>上下文感知翻译</h3><p>结合页面标题与前段译文，长文代词指代与术语更连贯，不会翻着翻着「他」变成「它」。</p></div>
-          <div class="card tilt reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v11H7l-3 3V4Z"/></svg></div><h3>划词翻译</h3><p>选中文字即译，独立浮窗展示，不改变原网页；顺手查词、查句都方便。</p></div>
-          <div class="card tilt reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M5 16l4-8 3 5 3-7 4 10"/></svg></div><h3>译文可编辑 · 术语自学习</h3><p>hover 译文即可修改，自动抽取术语沉淀进个人术语表，越翻越贴合你的用语习惯。</p></div>
-          <div class="card tilt reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 6 4-12 2 6h6"/></svg></div><h3>多引擎任选</h3><p>多家 AI 与传统翻译预设开箱即用，也支持任意 OpenAI 兼容接口与本地模型，质量、成本、隐私由你权衡。</p></div>
-        </div>
-        <div class="center-cta reveal">
-          <a class="btn btn-ghost" href="features.html">查看全部功能 →</a>
-        </div>
+      <div class="card violet reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+        <h3>上下文感知</h3>
+        <p>结合页面标题与前段译文构造滑动窗口，长文的代词指代、术语口径前后一致，像人读完全文再下笔。</p>
       </div>
-    </section>
-
-    <section class="block" id="howto">
-      <div class="container">
-        <div class="section-head reveal reveal--blur">
-          <p class="section-eyebrow reveal">创新交互设计</p>
-          <h2><span class="underline-grow">⌨️ 怎么用</span></h2>
-          <p>不用学新工具——好翻把翻译揉进你本来就有的阅读动作里，几种方式随手切换。</p>
-        </div>
-        <div class="features" data-stagger>
-          <div class="card tilt reveal"><h3>划词即译</h3><p>选中网页上的任意词或句，独立浮窗就地给出译文，原页面一字不动，查词查句都顺手。</p></div>
-          <div class="card tilt reveal"><h3>悬停即译</h3><p>鼠标悬停段落，译文气泡就地出现，可固定、可取消——快速瞄一眼，不用整页开译。</p></div>
-          <div class="card tilt reveal"><h3>整页一键对照</h3><p>一键把整页切换为双语并排，或随时退回仅原文 / 仅译文；快捷键随时开关，长文阅读的节奏你定。</p></div>
-          <div class="card tilt reveal"><h3>多引擎路由</h3><p>按场景切 AI / 传统 / 本地模型：长文要质量用 AI，随手查用传统，敏感内容走本地。</p></div>
-        </div>
+      <div class="card amber reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+        <h3>质量自检</h3>
+        <p>译后自动校验数字、URL、邮箱、占位符与代码 token 是否保真，缺失时追加指令校正重试并标记提示。</p>
       </div>
-    </section>
-
-    <section class="block" id="pillars">
-      <div class="container">
-          <div class="section-head reveal reveal--blur">
-          <p class="section-eyebrow reveal">为什么选好翻</p>
-            <h2><span class="underline-grow">💎 为什么选「好翻」</span></h2>
-            <p>比起「一键整页替换」的翻译器，好翻把选择权交还给你。</p>
-          </div>
-          <div class="pillars" data-stagger>
-            <div class="pillar tilt reveal">
-            <div class="no">01</div>
-            <h3>对照阅读，不是覆盖阅读</h3>
-            <p>译文嵌在原文下方，而不是把整页换成看不惯的译文。你始终知道「原文说了什么」，遇到存疑的翻译也能立刻回看。</p>
-          </div>
-          <div class="pillar tilt reveal">
-            <div class="no">02</div>
-            <h3>数据主权在你手里</h3>
-            <p>没有账号、没有遥测、没有广告追踪。API Key 只存本地，翻译请求直连你选的服务商，我们看不到、也不收集你的任何数据。</p>
-          </div>
-          <div class="pillar tilt reveal">
-            <div class="no">03</div>
-            <h3>翻译引擎你说了算</h3>
-            <p>多家 AI 与传统翻译任选，还支持任意 OpenAI 兼容接口与本地模型。质量、成本、隐私，按你的需求权衡——谁给你翻译，由你决定。</p>
-          </div>
-          <div class="pillar tilt reveal">
-            <div class="no">04</div>
-            <h3>每一项行为都可解释</h3>
-            <p>开源可审计：每条译文的生成路径、省 Token 策略、安全防护，都能在源码里找到对应实现——透明，所以可信。</p>
-          </div>
-        </div>
+      <div class="card reveal"><span class="new">v0.2.0</span>
+        <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/></svg></div>
+        <h3>朗读译文</h3>
+        <p>划词面板、悬停气泡、输入框结果一键 TTS 朗读，按目标语言自动匹配发音——外语学习与听读场景利器。</p>
       </div>
-    </section>
-
-    <section class="block block--soft" id="reviews">
-      <div class="container">
-        <div class="section-head reveal reveal--blur">
-          <p class="section-eyebrow reveal">好评如潮</p>
-          <h2><span class="underline-grow">⭐ 用户怎么说</span></h2>
-          <p>从留学生到开发者，从外贸到科研——好翻正在帮越来越多的人，用更舒服的方式读外文网页。</p>
-        </div>
-        <div class="praise-marquee" aria-hidden="true">
-          <div class="praise-track">
-            <span class="praise"><span class="star">★★★★★</span>中英对照太爽了，读论文效率翻倍</span>
-            <span class="praise"><span class="star">★★★★★</span>终于找到不替换原文的翻译器</span>
-            <span class="praise"><span class="star">★★★★★</span>API Key 只存本地，用着安心</span>
-            <span class="praise"><span class="star">★★★★★</span>划词即译 + 术语表，越用越懂我</span>
-            <span class="praise"><span class="star">★★★★★</span>开源免费还能自配引擎，真香</span>
-            <span class="praise"><span class="star">★★★★★</span>对照阅读不打断思路，爱了</span>
-            <span class="praise"><span class="star">★★★★★</span>长文也不卡，首字很快出来</span>
-            <span class="praise"><span class="star">★★★★★</span>隐私至上，无账号无遥测</span>
-            <span class="praise"><span class="star">★★★★★</span>装上就能读外文，零门槛</span>
-            <span class="praise"><span class="star">★★★★★</span>比之前用的插件都顺手</span>
-            <span class="praise"><span class="star">★★★★★</span>中英对照太爽了，读论文效率翻倍</span>
-            <span class="praise"><span class="star">★★★★★</span>终于找到不替换原文的翻译器</span>
-            <span class="praise"><span class="star">★★★★★</span>API Key 只存本地，用着安心</span>
-            <span class="praise"><span class="star">★★★★★</span>划词即译 + 术语表，越用越懂我</span>
-            <span class="praise"><span class="star">★★★★★</span>开源免费还能自配引擎，真香</span>
-            <span class="praise"><span class="star">★★★★★</span>对照阅读不打断思路，爱了</span>
-            <span class="praise"><span class="star">★★★★★</span>长文也不卡，首字很快出来</span>
-            <span class="praise"><span class="star">★★★★★</span>隐私至上，无账号无遥测</span>
-            <span class="praise"><span class="star">★★★★★</span>装上就能读外文，零门槛</span>
-            <span class="praise"><span class="star">★★★★★</span>比之前用的插件都顺手</span>
-          </div>
-        </div>
-        <div class="quotes" data-stagger>
-          <figure class="quote reveal">
-            <blockquote>作为在日留学生，读导师发来的英文论文最头疼。好翻把译文直接排在原文下面，对照着看，术语还能自己攒进术语表，太省事了。</blockquote>
-            <figcaption><span class="avatar">🎓</span><span class="who"><b>留日研究生</b><small>读论文 / 文献</small></span></figcaption>
-          </figure>
-          <figure class="quote reveal">
-            <blockquote>全栈，每天泡文档。划词即译加译文可编辑是真的香，把团队黑话沉淀成术语表之后，越翻越准。</blockquote>
-            <figcaption><span class="avatar">💻</span><span class="who"><b>全栈工程师</b><small>读文档 / RFC</small></span></figcaption>
-          </figure>
-          <figure class="quote reveal">
-            <blockquote>做外贸的，时差党和海外客户邮件来回。直连自己选的引擎，重要的合同内容不经过第三方，安心。</blockquote>
-            <figcaption><span class="avatar">🌏</span><span class="who"><b>跨境电商运营</b><small>看商品页 / 邮件</small></span></figcaption>
-          </figure>
-          <figure class="quote reveal">
-            <blockquote>科研助理，天天扫外文综述。整页一键双语对照，长文也不干等，首字出来很快，效率明显上来了。</blockquote>
-            <figcaption><span class="avatar">🔬</span><span class="who"><b>科研助理</b><small>扫文献 / 综述</small></span></figcaption>
-          </figure>
-          <figure class="quote reveal">
-            <blockquote>内容创作，经常对标海外竞品。译文可改可复用，二次创作不用先被机翻味劝退，灵感来得顺。</blockquote>
-            <figcaption><span class="avatar">✍️</span><span class="who"><b>内容创作者</b><small>对标 / 借鉴素材</small></span></figcaption>
-          </figure>
-          <figure class="quote reveal">
-            <blockquote>很在意隐私，最怕要登录、要上传的翻译器。好翻无账号、无遥测，Key 只在本地，正合我意。</blockquote>
-            <figcaption><span class="avatar">🛡️</span><span class="who"><b>隐私至上者</b><small>本地优先 / 无追踪</small></span></figcaption>
-          </figure>
-          <figure class="quote reveal">
-            <blockquote>外企上班，每天中英文邮件来回。悬停段落译文太顺手了，不用复制粘贴去别的网页查词。</blockquote>
-            <figcaption><span class="avatar">🧑‍💼</span><span class="who"><b>外企职员</b><small>英文邮件 / 会议纪要</small></span></figcaption>
-          </figure>
-          <figure class="quote reveal">
-            <blockquote>啃英文攻略和 Reddit 讨论区，整页对照读起来，再也不怕漏掉关键机制。</blockquote>
-            <figcaption><span class="avatar">🎮</span><span class="who"><b>游戏玩家</b><small>英文攻略 / 社区讨论</small></span></figcaption>
-          </figure>
-          <figure class="quote reveal">
-            <blockquote>做初译打底用得上，译文可编辑这点太重要了，直接在扩展里改完再导出。</blockquote>
-            <figcaption><span class="avatar">🖋️</span><span class="who"><b>自由译者</b><small>术语表 / 初译</small></span></figcaption>
-          </figure>
-        </div>
+      <div class="card teal reveal"><span class="new">v0.2.0</span>
+        <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <h3>翻译历史</h3>
+        <p>划词 / 输入框 / 弹窗翻译自动入册：关键词搜索、点击回填重译、一键清空。本地存储 200 条，隐私无忧。</p>
       </div>
-    </section>
-
-    <section class="block" id="closing">
-      <div class="container">
-        <div class="privacy-cta reveal reveal--scale">
-          <h2>🔒 你的数据，只属于你</h2>
-          <p>
-            API Key 仅保存在浏览器本地（<code>storage.local</code>），按服务商隔离存储、直发所选服务商；无遥测、无广告追踪、无用户行为统计；翻译请求带注入防护。完整说明见隐私政策。
-          </p>
-          <a class="btn btn-ghost" href="privacy.html">查看隐私政策</a>
-        </div>
-        <div class="center-cta reveal">
-          <a class="btn btn-primary js-download" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">下载扩展（<span class="js-latest-version">v0.1.23</span>）</a>
-        </div>
+      <div class="card violet reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3>划词 · 悬停 · 输入框</h3>
+        <p>选中文字、悬停段落、聚焦输入框，三种即译方式覆盖所有阅读场景，结果浮层统一支持复制与朗读。</p>
       </div>
-    </section>
-
-        <footer>
-      <div class="footer-inner">
-        <div>© 2026 好翻（Open Translator CN）· 基于 <a href="https://github.com/Lokeily/hao-fan/blob/main/LICENSE" target="_blank" rel="noopener">MIT 许可证</a> 开源</div>
-        <div class="footer-links">
-          <a class="footer-github" href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener" aria-label="在 GitHub 上查看好翻">
-            <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
-            GitHub
-          </a>
-          <a href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">下载</a>
-          <a href="privacy.html">隐私政策</a>
-          <a href="terms.html">服务条款</a>
-        </div>
+      <div class="card amber reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+        <h3>图片翻译</h3>
+        <p>右键网页图片或上传本地图片，视觉模型 OCR 识别文字区域并叠加译文，漫画、截图、图表都能读。</p>
       </div>
-    </footer>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+        <h3>译文可编辑 · 术语自学习</h3>
+        <p>悬停译文直接修改，LLM 自动抽取被调整的术语沉淀进个人词库，下一次翻译即刻生效。</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-    <button class="to-top" aria-label="回到顶部" title="回到顶部">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-    </button>
-    <script src="assets/js/main.js" defer></script>
-  </body>
+<!-- ===================== 对比 ===================== -->
+<section id="compare" style="background:var(--bg2)">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="kicker">Why Haofan</span>
+      <h2>和传统云端翻译扩展，差在哪？</h2>
+      <p>一句话：<b>翻译这件事由谁完成，决定你的数据去了哪。</b></p>
+    </div>
+    <div class="compare-wrap reveal">
+      <table class="compare">
+        <thead>
+          <tr><th style="width:26%">维度</th><th style="width:37%">好翻 Haofan</th><th>传统云端翻译扩展</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>翻译请求去向</td><td class="col-hf">直连<b>你自己选择</b>的服务商，不经任何中转</td><td>先发到扩展厂商服务器，再转发给引擎</td></tr>
+          <tr><td>API Key 存放</td><td class="col-hf">仅存本机浏览器 storage.local，按服务商隔离</td><td>需上传至厂商云端保存</td></tr>
+          <tr><td>使用额度</td><td class="col-hf">用自己的套餐，配 Ollama 本地模型则完全免费无上限</td><td>免费额度有限，超出需订阅付费</td></tr>
+          <tr><td>隐私遥测</td><td class="col-hf"><span class="yes">✓ 零遥测</span>，无广告追踪、无行为统计</td><td><span class="no">常含行为统计与埋点</span></td></tr>
+          <tr><td>源码</td><td class="col-hf"><span class="yes">✓ MIT 完整开源</span>，每一行行为可审计</td><td><span class="no">闭源黑盒</span></td></tr>
+          <tr><td>引擎自由度</td><td class="col-hf">12 家 AI + 3 家机翻 + 任意 OpenAI 兼容接口随时切换</td><td>仅限内置固定引擎</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 工作原理 ===================== -->
+<section id="how">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="kicker">How it works</span>
+      <h2>一条译文的完整流水线</h2>
+      <p>八道工序保证「译得准、显示对、花得少」，每一步都在源码里可查。</p>
+    </div>
+    <div class="pipe reveal">
+      <div class="step"><b>提取文本</b><span>语义段落识别<br>排除导航页眉</span></div>
+      <div class="step"><b>标识符遮罩</b><span>代码/库名占位保护<br>顺带省 completion</span></div>
+      <div class="step"><b>提示词组装</b><span>防注入边界包裹<br>稳定前缀利于缓存</span></div>
+      <div class="step"><b>引擎路由</b><span>长文切强模型<br>故障自动转移</span></div>
+      <div class="step"><b>流式请求</b><span>SSE 逐字回传<br>空闲超时兜底</span></div>
+      <div class="step"><b>质量自检</b><span>数字/URL 保真校验<br>缺失自动校正</span></div>
+      <div class="step"><b>还原渲染</b><span>占位符还原<br>textContent 注入</span></div>
+      <div class="step"><b>多级缓存</b><span>句子级 + 整段 LRU<br>重复内容零请求</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 引擎 ===================== -->
+<section id="engines" style="background:var(--bg2)">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="kicker">Engines</span>
+      <h2>15 家翻译服务，随你切换</h2>
+      <p>国内外主流 AI 与传统机翻一应俱全，还支持任意 OpenAI 兼容的自建端点。</p>
+    </div>
+    <div class="chips reveal">
+      <span class="chip">DeepSeek</span><span class="chip">OpenAI</span><span class="chip">Google Gemini</span>
+      <span class="chip">OpenRouter</span><span class="chip">智谱 GLM</span><span class="chip">腾讯混元</span>
+      <span class="chip">通义千问</span><span class="chip">Kimi</span><span class="chip">百川智能</span>
+      <span class="chip">豆包</span><span class="chip">Ollama · 本地离线</span><span class="chip">自定义 OpenAI 兼容接口</span>
+      <span class="chip free">Google 翻译 · 免 Key</span><span class="chip free">DeepL</span><span class="chip free">Microsoft 翻译</span>
+    </div>
+    <p class="chip-note">虚线框为免 Key 引擎：Google 翻译走非官方免费通道适合快速体验；正式使用建议配置自己的 API Key，或用 Ollama 本地模型实现完全免费 + 数据不出本机。</p>
+  </div>
+</section>
+
+<!-- ===================== 下载 ===================== -->
+<section id="download">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="kicker">Download</span>
+      <h2>三步开始沉浸式阅读</h2>
+      <p>下载解压 → 浏览器开发者模式加载 → 点右下角「译」。没有 Key？先用免 Key 的 Google 翻译体验。</p>
+    </div>
+    <div class="dl-grid reveal">
+      <div class="dl-card">
+        <div class="brow">🌐</div>
+        <h3>Chrome</h3>
+        <p>MV3 · 需要 Chrome 110+</p>
+        <a class="btn btn-primary" data-dl="chrome" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">下载 Chrome 版</a>
+      </div>
+      <div class="dl-card">
+        <div class="brow">🅔</div>
+        <h3>Edge</h3>
+        <p>MV3 · 与 Chrome 版通用</p>
+        <a class="btn btn-primary" data-dl="chrome" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">下载 Edge 版</a>
+      </div>
+      <div class="dl-card">
+        <div class="brow">🦊</div>
+        <h3>Firefox</h3>
+        <p>MV2 · 临时载入，重启后失效</p>
+        <a class="btn btn-primary" data-dl="firefox" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">下载 Firefox 版</a>
+      </div>
+    </div>
+    <p class="dl-steps reveal">
+      加载方法：<code>chrome://extensions</code> → 打开「开发者模式」→「加载已解压的扩展程序」→ 选择解压目录 ·
+      详细图文见 <a href="install.html" style="color:var(--accent)">安装指南</a>
+    </p>
+  </div>
+</section>
+
+<!-- ===================== FAQ ===================== -->
+<section id="faq" style="background:var(--bg2)">
+  <div class="container">
+    <div class="sec-head reveal">
+      <span class="kicker">FAQ</span>
+      <h2>常见问题</h2>
+    </div>
+    <div class="faq reveal">
+      <details class="q" open>
+        <summary>好翻真的完全免费吗？</summary>
+        <div class="a">扩展本身 <b>MIT 开源、永久免费、无任何功能限制</b>。翻译消耗由你自己的服务商账户承担（如 DeepSeek 按量计费）；不想花钱可以选「Google 翻译」免 Key 通道体验，或用 <b>Ollama 本地模型</b>实现零成本且断网可用（指不再访问云端 AI）。</div>
+      </details>
+      <details class="q">
+        <summary>我的浏览内容和 API Key 安全吗？</summary>
+        <div class="a">Key 只存在你浏览器的 <b>storage.local</b>，按服务商隔离，仅通过 Authorization 头直发给所选服务商——<b>不经过任何第三方服务器</b>。待译文本用「数据边界」包裹防提示注入；译文以 textContent 注入 Shadow DOM，无 XSS 面；扩展自身零遥测。以上每一条都能在源码里找到对应实现。</div>
+      </details>
+      <details class="q">
+        <summary>和「沉浸式翻译」这类产品有什么区别？</summary>
+        <div class="a">核心差异在<b>架构</b>：多数产品把你的网页内容先发到厂商服务器再转发翻译，Key 也存在云端，免费额度有限且闭源；好翻是<b>直连架构 + 完整开源</b>——你配置谁就直连谁，Key 不出本机，源码可审计，无额度限制。双语对照的阅读体验我们同样打磨得非常细致。</div>
+      </details>
+      <details class="q">
+        <summary>会大量消耗 Token 吗？</summary>
+        <div class="a">好翻为此设计了五层省钱机制：<b>句子级缓存</b>（微变只译变化句）、<b>30 天 LRU 整段缓存</b>、<b>术语库命中零请求</b>、<b>已是目标语言本地跳过</b>、动态内容 8 秒冷却 + 数字就地更新。还有「手动模式」整页不自动翻，点哪译哪。首次翻译后重复阅读几乎零消耗。</div>
+      </details>
+      <details class="q">
+        <summary>支持哪些语言和网站？</summary>
+        <div class="a">18 种主流语言互译，源语言支持自动检测；任意普通网页均可翻译（含 SPA 动态内容、无限滚动）。PDF 与浏览器内部页暂不支持，可在弹窗中使用文本翻译替代。</div>
+      </details>
+      <details class="q">
+        <summary>为什么安装后没有商店版那样自动更新？</summary>
+        <div class="a">当前为开发者模式加载的未签名包，浏览器不会自动更新——这是平台限制。请关注 <a href="https://github.com/Lokeily/hao-fan/releases" target="_blank" rel="noopener" style="color:var(--accent)">Releases 页面</a>获取新版本；商店上架正在推进中，上架后将支持自动更新。</div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== CTA ===================== -->
+<section style="padding-top:20px">
+  <div class="container">
+    <div class="cta reveal">
+      <h2>准备好换一种方式读外文了吗？</h2>
+      <p>下载好翻，三十秒开启沉浸式双语阅读。</p>
+      <a class="btn" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">立即免费下载 →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== Footer ===================== -->
+<footer>
+  <div class="container foot-grid">
+    <div class="foot-brand">
+      <a class="brand" href="./"><img src="assets/img/icon-128.png" alt="" /><span>好翻 Haofan</span></a>
+      <p>开源、免费、直连自选 AI 的沉浸式双语网页翻译扩展。让每一次外文阅读，都顺畅自然。</p>
+    </div>
+    <div>
+      <h4>产品</h4>
+      <ul>
+        <li><a href="#features">功能特性</a></li>
+        <li><a href="#download">下载安装</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/releases" target="_blank" rel="noopener">更新日志</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>资源</h4>
+      <ul>
+        <li><a href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">GitHub 仓库</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/issues" target="_blank" rel="noopener">问题反馈</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">参与贡献</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>法律</h4>
+      <ul>
+        <li><a href="privacy.html">隐私政策</a></li>
+        <li><a href="terms.html">服务条款</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="copyright container">© 2026 好翻 Haofan contributors · 基于 MIT 协议开源 · 由社区驱动维护</div>
+</footer>
+
+<script>
+// 移动端菜单
+const toggle=document.getElementById('navToggle'),links=document.getElementById('navLinks');
+toggle.addEventListener('click',()=>{const o=links.classList.toggle('open');toggle.setAttribute('aria-expanded',o)});
+links.addEventListener('click',e=>{if(e.target.closest('a'))links.classList.remove('open')});
+
+// 滚动显现
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+// FAQ 手风琴互斥
+document.querySelectorAll('details.q').forEach(d=>d.addEventListener('toggle',()=>{
+  if(d.open)document.querySelectorAll('details.q').forEach(o=>{if(o!==d)o.open=false});
+}));
+
+// 从 GitHub Release 拉取最新版本号 + 直链下载按钮
+(async()=>{
+  try{
+    const r=await fetch('https://api.github.com/repos/Lokeily/hao-fan/releases/latest');
+    if(!r.ok)return;
+    const rel=await r.json();
+    const v=(rel.tag_name||'').replace(/^v/,'');
+    if(v){const el=document.getElementById('ver');if(el)el.textContent='v'+v;}
+    const names={chrome:'open-translator-cn-'+v+'-chrome.zip',firefox:'open-translator-cn-'+v+'-firefox.zip'};
+    document.querySelectorAll('[data-dl]').forEach(a=>{
+      const f=names[a.dataset.dl];
+      const asset=(rel.assets||[]).find(x=>x.name===f);
+      if(asset)a.href=asset.browser_download_url;
+    });
+  }catch(_){/* 保持 releases/latest 兜底 */}
+})();
+</script>
+</body>
 </html>
