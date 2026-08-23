@@ -60,7 +60,20 @@ export function isSettingsBackup(data: unknown): data is SettingsBackup {
   const record = data as Record<string, unknown>;
   if (record.app !== BACKUP_APP || record.kind !== BACKUP_KIND) return false;
   if (record.version !== BACKUP_VERSION) return false;
-  if (record.disabledSites !== undefined && !Array.isArray(record.disabledSites)) return false;
+  // config 必须是对象：畸形备份（如手工编辑出错）不得静默重置全部设置
+  if (!record.config || typeof record.config !== 'object' || Array.isArray(record.config)) return false;
+  if (
+    record.disabledSites !== undefined &&
+    (!Array.isArray(record.disabledSites) ||
+      !record.disabledSites.every((s) => typeof s === 'string'))
+  )
+    return false;
+  if (
+    record.autoSites !== undefined &&
+    record.autoSites !== null &&
+    (!Array.isArray(record.autoSites) || !record.autoSites.every((s) => typeof s === 'string'))
+  )
+    return false;
   return true;
 }
 

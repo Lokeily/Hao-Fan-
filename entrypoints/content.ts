@@ -243,6 +243,7 @@ export default defineContentScript({
           currentTranslateMode = v.translateMode;
           // 工具栏空闲态文案跟随模式变化；切入手动模式时给一次性操作提示。
           refreshToolbarIdleLabels();
+          if (prevMode !== 'manual' && currentTranslateMode === 'manual' && dynamicActive) stopDynamic();
           if (prevMode !== 'manual' && currentTranslateMode === 'manual' && !thisSiteAutoOverride && !busy && !siteDisabled) {
             showStatus('已切换到手动模式：点击段落或划选文字即可翻译', true, 3500);
           }
@@ -780,7 +781,11 @@ export default defineContentScript({
       original: string,
       translation: string,
     ): 'inserted' | 'skipped' | 'stale' {
-      if (!el.isConnected || textOfBlock(el) !== original) return 'stale';
+      if (!el.isConnected || textOfBlock(el) !== original) {
+        // stale 时清理可能存在的半截流式译文，避免错误内容滞留 8 秒
+        dropTranslationNode(el);
+        return 'stale';
+      }
       if (!translation || translation === original) {
         markTranslated(el);
         return 'skipped';
@@ -1223,7 +1228,13 @@ export default defineContentScript({
         showSetupGuide(userInitiated);
         return;
       }
-      // await 期间用户点了「取消」：就此收尾，不再继续启动序列。
+      // await 期间用户点了「取消」或站点被暂停：就此收尾，不再继续启动序列。
+      if (siteDisabled && ownedByMe()) {
+        busy = false;
+        setToolbarLoading(false);
+        showSitePausedNotice();
+        return;
+      }
       if (cancelled()) {
         if (ownedByMe()) {
           busy = false;
@@ -1759,6 +1770,7 @@ export default defineContentScript({
         closeFullSettings();
         document.getElementById('ot-toolbar')?.remove();
       } else {
+        noticeCycles.release('site-paused');
         mountToolbar();
       }
     }
@@ -2364,18 +2376,16 @@ export default defineContentScript({
       fullSettingsEsc = escHandler;
       document.addEventListener('keydown', escHandler, true);
       // 弹窗打开期间锁定页面滚动：滚轮/触摸落在面板外（遮罩上）时阻止，
-      // 面板内部滚动不受影响（此前全局拦截导致面板内容也滚不动）。
-      const inModal = (target: EventTarget | null) => {
-        const el = target instanceof Element ? target : null;
-        if (!el) return false;
-        // 事件目标在面板 shadow 树内（含面板内部元素）→ 不拦截，面板可正常滚动
-        return Boolean(shadow.contains(el));
+      // 面板内部滚动不受影响。Shadow DOM 会把事件 target 重定向为宿主元素，
+      // 必须用 composedPath 拿到 shadow 内的真实目标才能正确判断。
+      const inModal = (e: Event) => {
+        return (e.composedPath() as EventTarget[]).includes(modal);
       };
       fullSettingsWheelLock = (e: WheelEvent) => {
-        if (!inModal(e.target)) e.preventDefault();
+        if (!inModal(e)) e.preventDefault();
       };
       fullSettingsTouchLock = (e: TouchEvent) => {
-        if (!inModal(e.target)) e.preventDefault();
+        if (!inModal(e)) e.preventDefault();
       };
       window.addEventListener('wheel', fullSettingsWheelLock, true);
       window.addEventListener('touchmove', fullSettingsTouchLock, true);
@@ -2575,8 +2585,8 @@ export default defineContentScript({
           document.removeEventListener('keydown', onDocKeyDown, true);
           settingsDismiss = null;
         };
-      } catch {
-        /* 存储不可用时静默 */
+      } catch (e) {
+        showStatus('设置面板打开失败：' + (e instanceof Error ? e.message : '未知错误'), true, 4000);
       }
     }
 
@@ -2686,8 +2696,8 @@ export default defineContentScript({
           el.classList.contains(OBSERVED_CLASS)
         )
           return;
+        if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
         if (el === hoverEl) return;
-        if (hoverTimer) clearTimeout(hoverTimer);
         hoverTimer = setTimeout(() => showHoverBubbleFor(el), 500);
       },
       true,

@@ -45,19 +45,18 @@ if (typeof document !== 'undefined' && typeof location !== 'undefined') {
           <div class="ot-backup-buttons">
             <button id="ot-export" type="button" class="ot-backup-btn is-primary">导出设置到文件</button>
             <button id="ot-import" type="button" class="ot-backup-btn">从文件导入设置…</button>
+            <input id="ot-import-file" type="file" accept="application/json,.json" hidden />
             <button id="ot-copy-settings" type="button" class="ot-backup-btn">复制全部设置（含 Key）</button>
             <button id="ot-paste-settings" type="button" class="ot-backup-btn">从剪贴板导入</button>
           </div>
-        </div>
         <p id="ot-migrate-hint" class="ot-migrate-hint" hidden>
           💡 检测到尚未配置任何 API Key。如果你是从旧版本迁移过来：先在旧版本的设置里点「复制全部设置」，再回到这里点「从剪贴板导入」即可恢复全部配置。
         </p>
-        </div>
         <p id="ot-backup-status" class="ot-backup-status" role="status" aria-live="polite"></p>
       </section>
     </main>
   `;
-  buildConfigForm(document.getElementById('ot-form-mount') as HTMLElement, false);
+  const formApi = buildConfigForm(document.getElementById('ot-form-mount') as HTMLElement, false);
 
   const statusEl = document.getElementById('ot-backup-status') as HTMLElement;
   const setStatus = (message: string, error = false) => {
@@ -67,7 +66,7 @@ if (typeof document !== 'undefined' && typeof location !== 'undefined') {
 
   const exportBtn = document.getElementById('ot-export') as HTMLButtonElement;
   const importBtn = document.getElementById('ot-import') as HTMLButtonElement;
-  const importFile = document.getElementById('ot-import-file') as HTMLInputElement;
+  const importFile = document.getElementById('ot-import-file') as HTMLInputElement | null;
   const includeKeys = document.getElementById('ot-export-keys') as HTMLInputElement;
 
   // ===== 导出：读取当前存储 → 组装 v1 备份 → 触发下载 =====
@@ -113,10 +112,10 @@ if (typeof document !== 'undefined' && typeof location !== 'undefined') {
   });
 
   // ===== 导入：解析 → 校验 → 写回 storage；表单经 storage watch 自动刷新 =====
-  importBtn.addEventListener('click', () => importFile.click());
-  importFile.addEventListener('change', async () => {
-    const file = importFile.files?.[0];
-    importFile.value = '';
+  importBtn.addEventListener('click', () => importFile?.click());
+  importFile?.addEventListener('change', async () => {
+    const file = importFile?.files?.[0];
+    if (importFile) importFile.value = '';
     if (!file) return;
     if (file.size > 1024 * 1024) {
       setStatus('导入失败：文件超过 1 MB，不是有效的设置备份。', true);
@@ -143,6 +142,7 @@ if (typeof document !== 'undefined' && typeof location !== 'undefined') {
       if (backup.autoSites !== undefined) {
         await autoSitesItem.setValue(backup.autoSites);
       }
+      formApi.resetDirty(sanitized);
       const keyCount = Object.keys(sanitized.apiKeys).length;
       setStatus(
         `导入成功：引擎 ${sanitized.provider} · 目标语言 ${sanitized.targetLang}` +
@@ -204,6 +204,7 @@ if (typeof document !== 'undefined' && typeof location !== 'undefined') {
       if (backup.autoSites !== undefined) {
         await autoSitesItem.setValue(backup.autoSites);
       }
+      formApi.resetDirty(sanitized);
       setStatus(`剪贴板导入成功：引擎 ${sanitized.provider} · 目标语言 ${sanitized.targetLang}`);
       updateMigrateHint(sanitized);
     } catch (error) {

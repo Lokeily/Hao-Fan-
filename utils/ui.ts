@@ -27,6 +27,8 @@ export interface ConfigFormApi {
   updateSiteState: (auto?: boolean, paused?: boolean) => void;
   /** 销毁表单时停止响应后续 storage 同步，避免页内面板反复打开产生旧监听。 */
   dispose: () => void;
+  /** 导入等外部操作覆盖配置后调用：清除未保存的本地脏标记，让表单跟随新值。 */
+  resetDirty: (next?: AppConfig) => void;
 }
 
 export function buildConfigForm(
@@ -585,12 +587,14 @@ export function buildConfigForm(
     markDirty('provider');
     // Key 输入框已编辑但尚未落库时，先把它提交给「切换前」的服务商：
     // 否则切引擎后保存会把旧服务商的 Key 误存到新服务商名下。
+    // 失败时保留 (oldProvider, editedKey) 闭包供重试，避免归属错位。
     if (dirtyFields.has('apiKey') && cfg.provider !== providerSel.value) {
       const oldProvider = cfg.provider;
       const editedKey = keyInput.value.trim();
       saveQueue = saveQueue
         .catch(() => {})
         .then(async () => {
+          if (configLoadFailed) return;
           const latest = normalizeConfig(await configItem.getValue().catch(() => cfg));
           const merged = { ...latest, apiKeys: { ...latest.apiKeys } };
           if (editedKey) merged.apiKeys[oldProvider] = editedKey;
@@ -598,8 +602,10 @@ export function buildConfigForm(
           await configItem.setValue(merged);
         })
         .catch(() => {
-          // 写失败必须归还脏标记：静默吞掉会让这轮 Key 永久丢失。
+          // 写失败：把 Key 还原到输入框并标脏，用户下次操作即按原归属重试。
           dirtyFields.add('apiKey');
+          keyInput.value = editedKey;
+          cfg.provider = oldProvider;
           setStatus('保存失败：切换引擎前的 API Key 未保存，请重试', true);
         });
     }
@@ -853,12 +859,26 @@ export function buildConfigForm(
       if (paused !== undefined && pauseSiteInput) pauseSiteInput.checked = paused;
       syncCheckState();
     },
+    resetDirty: (next?: AppConfig) => {
+      dirtyFields.clear();
+      if (inputSaveTimer) {
+        clearTimeout(inputSaveTimer);
+        inputSaveTimer = null;
+      }
+      if (next) {
+        cfg = normalizeConfig(next);
+        configLoadFailed = false;
+      }
+      fill();
+    },
     dispose: () => {
       disposed = true;
-      if (inputSaveTimer) clearTimeout(inputSaveTimer);
-      inputSaveTimer = null;
-      // 真正退订 storage 监听：否则每次打开页内完整面板都净增一个
-      // onChanged 监听 + 一份被闭包持有的表单 DOM（长会话持续增长）。
+      // 冲刷挂起的防抖保存：页内面板关得太快时不得吞掉最后一次编辑
+      if (inputSaveTimer) {
+        clearTimeout(inputSaveTimer);
+        inputSaveTimer = null;
+        void save();
+      }
       try {
         unwatchConfig?.();
       } catch {

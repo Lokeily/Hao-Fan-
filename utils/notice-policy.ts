@@ -20,4 +20,9 @@ export class NoticeCycleGate {
     this.cycles.add(cycleId);
     return true;
   }
+
+  /** 允许指定 cycle 下次再次展示（如站点恢复后重新允许暂停提示）。 */
+  release(cycleId: string): void {
+    this.cycles.delete(cycleId);
+  }
 }
