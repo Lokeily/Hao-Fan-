@@ -4,16 +4,209 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>安装指南 — 好翻 Haofan</title>
+<meta name="description" content="好翻安装指南：Chrome / Edge / Firefox 三平台下载与加载步骤，首次配置引导、免 Key 体验方法与常见问题排查。" />
 <link rel="icon" type="image/png" href="assets/img/icon-128.png" />
-<meta http-equiv="refresh" content="0; url=index.html#download" />
+<link rel="stylesheet" href="assets/css/site.css" />
 <style>
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-display:grid;place-items:center;min-height:100vh;margin:0;background:#f7f8fa;color:#101418}
-a{color:#0a6cff}
+.plat-switch{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:34px}
+.plat-switch a{padding:9px 20px;border-radius:999px;border:1px solid var(--border);background:var(--surface);
+  font-size:14px;color:var(--text2);transition:.18s}
+.plat-switch a:hover{border-color:var(--accent);color:var(--accent)}
+.trouble{max-width:780px;margin:40px auto 0}
+.trouble details.q .a{font-size:14px}
 </style>
 </head>
 <body>
-<p>本页已合并进新版官网，正在为你跳转… 若未跳转请<a href="index.html#download">点击这里</a>。</p>
-<script>location.replace("index.html#download");</script>
+
+<nav class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="./"><img src="assets/img/icon-128.png" alt="好翻 logo" /><span>好翻<i>Haofan</i></span></a>
+    <div class="nav-right">
+      <button class="nav-toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false"><span></span><span></span><span></span></button>
+      <div class="nav-links" id="navLinks">
+        <a class="op" href="./">首页</a>
+        <a class="op" href="features.html">功能特性</a>
+        <a class="op" href="compare.html">与众不同</a>
+        <a class="op active" href="install.html">安装指南</a>
+        <a class="op" href="./#faq">常见问题</a>
+        <a class="nav-gh" href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+        <a class="nav-cta" href="#download-now">免费下载</a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<header class="page-head hero-bg" id="download-now">
+  <div class="container">
+    <span class="kicker">Install</span>
+    <h1>三分钟完成安装</h1>
+    <p class="sub">下载对应浏览器的 ZIP → 解压 → 开发者模式加载 → 右下角出现「译」按钮即成功。全程无需任何账号。</p>
+    <div style="margin-top:22px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <a class="btn btn-primary" data-dl="chrome" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">⬇ Chrome / Edge 版</a>
+      <a class="btn btn-primary" data-dl="firefox" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">⬇ Firefox 版</a>
+    </div>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:10px">按钮自动指向最新版本的产物文件；也可前往 <a href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener" style="color:var(--accent)">Releases 页面</a>手动选择。</p>
+  </div>
+</header>
+
+<main class="container" style="padding-bottom:30px">
+
+  <div class="plat-switch reveal">
+    <a href="#chrome">🌐 Chrome / Edge</a>
+    <a href="#firefox">🦊 Firefox</a>
+    <a href="#setup">🔑 首次配置</a>
+    <a href="#trouble">🛠 疑难排查</a>
+  </div>
+
+  <div class="sec-head reveal" id="chrome">
+    <span class="kicker">Chrome · Edge</span>
+    <h2 style="font-size:26px">Chrome 与 Edge 安装（MV3）</h2>
+  </div>
+  <div class="timeline reveal">
+    <div class="tl-item" data-n="1">
+      <h3>下载并解压 ZIP</h3>
+      <p>点击上方「Chrome / Edge 版」按钮，将下载得到的 <code>open-translator-cn-x.x.x-chrome.zip</code> 解压到一个<b>长期保留的目录</b>（不要放在下载文件夹后删除，浏览器会持续引用该目录）。</p>
+    </div>
+    <div class="tl-item" data-n="2">
+      <h3>打开扩展管理页</h3>
+      <p>在地址栏输入并访问：</p>
+      <span class="kbd-path">chrome://extensions</span>
+      <p>Edge 用户请访问 <code>edge://extensions</code>。</p>
+    </div>
+    <div class="tl-item" data-n="3">
+      <h3>开启开发者模式</h3>
+      <p>在扩展管理页右上角（Edge 为左侧）找到「开发者模式」开关并打开。</p>
+    </div>
+    <div class="tl-item" data-n="4">
+      <h3>加载已解压的扩展程序</h3>
+      <p>点击左上角出现的「加载已解压的扩展程序」按钮，选择<b>解压后直接包含 manifest.json 的那一层目录</b>。成功后列表会出现「好翻」，浏览器右上角工具栏可将其固定。</p>
+    </div>
+  </div>
+
+  <div class="sec-head reveal" id="firefox" style="margin-top:56px">
+    <span class="kicker">Firefox</span>
+    <h2 style="font-size:26px">Firefox 安装（MV2）</h2>
+  </div>
+  <div class="timeline reveal">
+    <div class="tl-item" data-n="1">
+      <h3>下载 Firefox 版 ZIP 并解压</h3>
+      <p>使用上方「Firefox 版」按钮下载，解压备用。</p>
+    </div>
+    <div class="tl-item" data-n="2">
+      <h3>打开调试页</h3>
+      <span class="kbd-path">about:debugging#/runtime/this-firefox</span>
+      <p>在 Firefox 地址栏输入以上地址并访问。</p>
+    </div>
+    <div class="tl-item" data-n="3">
+      <h3>临时载入附加组件</h3>
+      <p>点击「临时载入附加组件…」，选择解压目录中的 <code>manifest.json</code> 文件（注意是文件不是目录）。工具栏出现「好翻」图标即成功。</p>
+    </div>
+  </div>
+
+  <blockquote style="border-left:3px solid var(--amber);background:rgba(255,159,10,.08);padding:12px 16px;border-radius:0 10px 10px 0;max-width:760px;margin:8px auto 0;font-size:13.5px;color:var(--text2)" class="reveal">
+    ⚠️ Firefox 的「临时载入」为平台限制：<b>重启浏览器后扩展会消失</b>，需重新载入一次。签名版与商店上架正在推进中。
+  </blockquote>
+
+  <div class="sec-head reveal" id="setup" style="margin-top:56px">
+    <span class="kicker">Setup</span>
+    <h2 style="font-size:26px">首次配置：三十秒开始翻译</h2>
+  </div>
+  <div class="timeline reveal">
+    <div class="tl-item" data-n="1">
+      <h3>打开设置</h3>
+      <p>任意网页右下角会出现蓝色「译」按钮组，点击旁边的 ⚙ 齿轮打开快速设置面板，再点「打开完整设置」（或点浏览器工具栏的好翻图标 → 设置）。</p>
+    </div>
+    <div class="tl-item" data-n="2">
+      <h3>选择引擎并填入 API Key</h3>
+      <p>推荐 DeepSeek / 智谱 GLM 等国内服务商（注册即送额度）。粘贴 Key 后点击「测试连接」确认可用。</p>
+    </div>
+    <div class="tl-item" data-n="3">
+      <h3>没有 Key？先免 Key 体验</h3>
+      <p>把翻译引擎切换为「Google 翻译（免 Key）」，无需任何注册即可立刻体验完整功能；正式使用时建议换回带 Key 的 AI 引擎获得更高质量。</p>
+    </div>
+    <div class="tl-item" data-n="4">
+      <h3>开始阅读</h3>
+      <p>回到任意英文网页，点右下角「译」。译文会逐段出现在原文下方。按 <kbd>Alt</kbd>+<kbd>T</kbd> 也可一键触发。</p>
+    </div>
+  </div>
+
+  <div class="sec-head reveal" id="trouble" style="margin-top:56px">
+    <span class="kicker">Troubleshoot</span>
+    <h2 style="font-size:26px">疑难排查</h2>
+  </div>
+  <div class="trouble reveal">
+    <details class="q">
+      <summary>点了「译」没有任何反应？</summary>
+      <div class="a">① 检查是否处于「手动模式」——该模式整页不自动翻译，需点击段落或划词；② 若弹出引导卡说明还没配置 Key，按提示完成即可自动续译；③ 扩展更新后请在扩展管理页点「重新加载」，并刷新网页。</div>
+    </details>
+    <details class="q">
+      <summary>提示「请先填写 API Key」或测试连接失败？</summary>
+      <div class="a">确认所选服务商与 Key 匹配（不同服务商 Key 不通用）；从服务商后台完整复制，避免多余空格；账户需要有余额或免费额度。401 = Key 无效/过期，403 = 无权限或欠费。</div>
+    </details>
+    <details class="q">
+      <summary>某些页面没有出现「译」按钮？</summary>
+      <div class="a">Chrome 商店页、PDF 查看器等浏览器内部页面禁止注入扩展脚本，属平台限制；此类页面可在弹窗中使用文本翻译替代。另外若该站点被你暂停过，请在弹窗中恢复「当前网站翻译」开关。</div>
+    </details>
+    <details class="q">
+      <summary>升级新版本要注意什么？</summary>
+      <div class="a">覆盖解压到同一目录后在扩展管理页点「重新加载」即可，设置与缓存都会保留。若大版本升级后行为异常，可在设置中导出备份 → 清空存储 → 导入恢复。</div>
+    </details>
+    <details class="q">
+      <summary>如何彻底卸载？</summary>
+      <div class="a">扩展管理页移除即可清除全部本地数据（Key、缓存、历史）。如需保留配置，先在设置页导出备份。</div>
+    </details>
+  </div>
+
+</main>
+
+<section style="padding-top:10px">
+  <div class="container">
+    <div class="cta reveal">
+      <h2>安装完成？去读一篇外文文章试试</h2>
+      <p>你会立刻注意到区别：译文就在原文下面，视线不用来回跳。</p>
+      <a class="btn" href="./">返回首页了解更多 →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container foot-grid">
+    <div class="foot-brand">
+      <a class="brand" href="./"><img src="assets/img/icon-128.png" alt="" /><span>好翻 Haofan</span></a>
+      <p>开源、免费、直连自选 AI 的沉浸式双语网页翻译扩展。让每一次外文阅读，都顺畅自然。</p>
+    </div>
+    <div>
+      <h4>产品</h4>
+      <ul>
+        <li><a href="features.html">功能特性</a></li>
+        <li><a href="compare.html">与众不同</a></li>
+        <li><a href="install.html">下载安装</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/releases" target="_blank" rel="noopener">更新日志</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>资源</h4>
+      <ul>
+        <li><a href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">GitHub 仓库</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/issues" target="_blank" rel="noopener">问题反馈</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">参与贡献</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>法律与合规</h4>
+      <ul>
+        <li><a href="privacy.html">隐私政策</a></li>
+        <li><a href="terms.html">服务条款</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="copyright container">© 2026 好翻 Haofan contributors · 基于 MIT 协议开源 · 由社区驱动维护<br />本扩展为开源工具，按「现状」提供；翻译结果由用户所配置的第三方服务商生成。</div>
+</footer>
+
+<script src="assets/js/site.js"></script>
 </body>
 </html>

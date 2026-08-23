@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>与众不同 — 好翻 Haofan</title>
+<meta name="description" content="好翻与传统云端翻译扩展的本质区别：直连架构让你的翻译请求与 API Key 完全由自己掌控。开源 MIT、零遥测、无额度限制。" />
+<link rel="icon" type="image/png" href="assets/img/icon-128.png" />
+<link rel="stylesheet" href="assets/css/site.css" />
+</head>
+<body>
+
+<nav class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="./"><img src="assets/img/icon-128.png" alt="好翻 logo" /><span>好翻<i>Haofan</i></span></a>
+    <div class="nav-right">
+      <button class="nav-toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false"><span></span><span></span><span></span></button>
+      <div class="nav-links" id="navLinks">
+        <a class="op" href="./">首页</a>
+        <a class="op" href="features.html">功能特性</a>
+        <a class="op active" href="compare.html">与众不同</a>
+        <a class="op" href="install.html">安装指南</a>
+        <a class="op" href="./#faq">常见问题</a>
+        <a class="nav-gh" href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+        <a class="nav-cta" href="#top-download">免费下载</a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<header class="page-head hero-bg" id="top-download">
+  <div class="container">
+    <span class="kicker">Why Haofan</span>
+    <h1>翻译这件事由谁完成，<br />决定你的数据去了哪</h1>
+    <p class="sub">选择翻译扩展时，最该问的问题不是「功能多不多」，而是「我的网页内容和 API Key 走了一条什么路径」。</p>
+  </div>
+</header>
+
+<main class="container" style="padding-bottom:30px">
+
+  <div class="sec-head reveal" style="margin-top:10px">
+    <h2 style="font-size:24px">两种架构，一图看懂</h2>
+  </div>
+
+  <div class="arch reveal">
+    <div class="arch-col good">
+      <h3>✅ 好翻 · 直连架构</h3>
+      <span class="node">你正在浏览的网页</span><br />
+      <span class="arrow">↓ 提取待译文本</span><br />
+      <span class="node hot">好翻扩展（本机）</span><br />
+      <span class="arrow">↓ 直连 · 仅经 Authorization 头</span><br />
+      <span class="node">你选择的服务商<br><small style="color:var(--muted);font-weight:450">DeepSeek / GLM / Gemini / Ollama…</small></span>
+      <span class="note-ok">🔒 Key 只存在本机浏览器，永不上传<br />🚫 无任何中转服务器经手你的数据</span>
+    </div>
+    <div class="arch-col bad">
+      <h3>☁️ 传统云端翻译扩展</h3>
+      <span class="node">你正在浏览的网页</span><br />
+      <span class="arrow warn">↓ 全文上传</span><br />
+      <span class="node hot" style="background:var(--surface2);box-shadow:none;color:var(--text)">厂商中转服务器</span><br />
+      <span class="arrow warn">↓ 转发请求 · Key 存云端</span><br />
+      <span class="node">内置固定引擎</span>
+      <span class="note-warn">⚠️ 网页内容与 Key 均经过第三方<br />⚠️ 免费额度有限，超出需订阅</span>
+    </div>
+  </div>
+
+  <div class="sec-head reveal" style="margin-top:60px">
+    <h2 style="font-size:24px">六个维度，逐项对比</h2>
+  </div>
+
+  <div class="compare-wrap reveal">
+    <table class="compare">
+      <thead><tr><th style="width:22%">维度</th><th style="width:39%">好翻 Haofan</th><th>传统云端翻译扩展</th></tr></thead>
+      <tbody>
+        <tr><td>翻译请求去向</td><td class="col-hf">扩展在本机直接调用<b>你自己选择</b>的服务商，不经任何中转服务器</td><td>网页内容先发到扩展厂商服务器，再由厂商转发给引擎</td></tr>
+        <tr><td>API Key 存放</td><td class="col-hf">仅存本机浏览器 storage.local，按服务商隔离，发送前净化校验</td><td>需要上传到厂商云端保存，依赖厂商的安全水位</td></tr>
+        <tr><td>源码开放</td><td class="col-hf"><span class="yes">✓ MIT 完整开源</span>，每一行行为可审计，社区可验证</td><td><span class="no">闭源黑盒</span>，数据处理方式无从考证</td></tr>
+        <tr><td>隐私遥测</td><td class="col-hf"><span class="yes">✓ 零遥测</span>：无广告追踪、无行为统计、无使用上报</td><td><span class="no">普遍包含埋点统计</span>与用户画像分析</td></tr>
+        <tr><td>使用成本</td><td class="col-hf">用自己的服务商套餐；配 Ollama 本地模型则完全免费且无上限</td><td>免费额度有限，重度使用需订阅付费</td></tr>
+        <tr><td>引擎自由度</td><td class="col-hf">12 家 AI + 3 家传统机翻 + 任意 OpenAI 兼容接口，随时切换</td><td>仅限产品内置的固定引擎列表</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sec-head reveal" style="margin-top:60px">
+    <h2 style="font-size:24px">逐项展开说说</h2>
+  </div>
+
+  <div class="feat-block good reveal" style="border-color:rgba(0,200,150,.35)">
+    <div class="ico" style="background:rgba(0,200,150,.12);color:#00a37c"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+    <div>
+      <h3>① 数据主权：直连不是营销词，是架构</h3>
+      <p>「直连」意味着好翻的代码里根本没有「中转服务器」这个角色。扩展从你的浏览器直接向所选服务商发起 HTTPS 请求——你在设置里选了 DeepSeek，请求就只发往 api.deepseek.com；选了本地 Ollama，则连网络都不出。</p>
+      <ul>
+        <li>API Key 经 cleanSecret 净化后仅通过 Authorization 头传输，绝不出现在 URL 中</li>
+        <li>待译文本用「数据边界」包裹 + 注入护栏，恶意网页无法借翻译操纵指令</li>
+        <li>这一切不需要信任任何承诺——源码就在仓库里，欢迎审计</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-block violet reveal">
+    <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></div>
+    <div>
+      <h3>② 成本模型：把定价权还给你</h3>
+      <p>云端产品的免费额度是获客成本，最终以订阅费收回。好翻没有服务器要养，所以永远不设额度：</p>
+      <ul>
+        <li>用量 = 你自己的 API 账单，明码标价、随时可停</li>
+        <li>五层缓存机制让重复阅读几乎零消耗</li>
+        <li>Ollama 本地模型路线：零外部成本、断网可用</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-block teal reveal">
+    <div class="ico" style="background:rgba(0,200,150,.12);color:#00a37c"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+    <div>
+      <h3>③ 开源可审计：信任建立在代码上</h3>
+      <p>隐私声明谁都会写，但只有开源能让你亲自验证。63 项单元测试 + 33 项浏览器回归守护每一个安全声明：</p>
+      <ul>
+        <li>全仓零 innerHTML：译文一律 textContent + Shadow DOM，无 XSS 面</li>
+        <li>Prompt Injection 双层防护有专项测试锁定行为</li>
+        <li>CI 流水线公开运行，每次提交可复查构建产物</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-block amber reveal">
+    <div class="ico" style="background:rgba(255,159,10,.13);color:#e8890c"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+    <div>
+      <h3>④ 公平的比较</h3>
+      <p>我们也客观说明另一面：闭源产品通常开箱即用、商店一键安装且有商业客服；好翻目前需要手动加载并自配 Key，上手门槛略高。如果你在意的是<b>数据掌控、成本自由与透明度</b>，好翻值得这三十秒的安装过程；如果更看重省事，也请至少关注一下你正在用的产品如何处理你的数据。</p>
+    </div>
+  </div>
+
+</main>
+
+<section style="padding-top:10px">
+  <div class="container">
+    <div class="cta reveal">
+      <h2>掌控感，也是一种阅读体验</h2>
+      <p>开源 · 直连 · 零遥测 —— 好翻等你来验证每一条承诺。</p>
+      <a class="btn" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">立即免费下载 →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container foot-grid">
+    <div class="foot-brand">
+      <a class="brand" href="./"><img src="assets/img/icon-128.png" alt="" /><span>好翻 Haofan</span></a>
+      <p>开源、免费、直连自选 AI 的沉浸式双语网页翻译扩展。让每一次外文阅读，都顺畅自然。</p>
+    </div>
+    <div>
+      <h4>产品</h4>
+      <ul>
+        <li><a href="features.html">功能特性</a></li>
+        <li><a href="compare.html">与众不同</a></li>
+        <li><a href="install.html">下载安装</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/releases" target="_blank" rel="noopener">更新日志</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>资源</h4>
+      <ul>
+        <li><a href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">GitHub 仓库</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/issues" target="_blank" rel="noopener">问题反馈</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">参与贡献</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>法律与合规</h4>
+      <ul>
+        <li><a href="privacy.html">隐私政策</a></li>
+        <li><a href="terms.html">服务条款</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="copyright container">© 2026 好翻 Haofan contributors · 基于 MIT 协议开源 · 由社区驱动维护<br />本扩展为开源工具，按「现状」提供；翻译结果由用户所配置的第三方服务商生成。</div>
+</footer>
+
+<script src="assets/js/site.js"></script>
+</body>
+</html>

@@ -1,248 +1,160 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>服务条款 · 好翻（Open Translator CN）</title>
-    <meta
-      name="description"
-      content="好翻（Open Translator CN）服务条款：开源、免费、直连自选 AI 的浏览器翻译扩展。依据《中华人民共和国网络安全法》《数据安全法》《个人信息保护法》《消费者权益保护法》等中国大陆法律法规制定。说明使用许可、禁止行为、合规义务、未成年人使用、第三方服务、知识产权、免责声明、责任限制与适用法律等。"
-    />
-    <meta property="og:title" content="服务条款 · 好翻（Open Translator CN）" />
-    <meta
-      property="og:description"
-      content="好翻服务条款：开源、免费、直连自选 AI 的浏览器翻译扩展，依据中国大陆法律法规制定，说明使用许可、禁止行为、责任限制与适用法律等。"
-    />
-    <link rel="icon" type="image/png" href="assets/img/icon-128.png" />
-    <link rel="apple-touch-icon" href="assets/img/icon-128.png" />
-    <script>document.documentElement.classList.add('js');</script>
-    <link rel="stylesheet" href="assets/css/style.css" />
-  </head>
-  <body class="doc-page">
-    <div class="scroll-progress"></div>
-    <nav class="nav">
-      <div class="nav-inner">
-        <a class="brand" href="index.html">
-          <img src="assets/img/icon-128.png" alt="好翻" />
-          <span>好翻</span>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>服务条款 — 好翻 Haofan</title>
+<meta name="description" content="好翻（Haofan）服务条款：开源软件使用许可、用户行为规范、知识产权、免责声明、责任限制与争议解决的说明，依据中华人民共和国相关法律法规制定。" />
+<link rel="icon" type="image/png" href="assets/img/icon-128.png" />
+<link rel="stylesheet" href="assets/css/site.css" />
+</head>
+<body>
+
+<nav class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="./"><img src="assets/img/icon-128.png" alt="好翻 logo" /><span>好翻<i>Haofan</i></span></a>
+    <div class="nav-right">
+      <button class="nav-toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false"><span></span><span></span><span></span></button>
+      <div class="nav-links" id="navLinks">
+        <a class="op" href="./">首页</a>
+        <a class="op" href="features.html">功能特性</a>
+        <a class="op" href="compare.html">与众不同</a>
+        <a class="op" href="install.html">安装指南</a>
+        <a class="op" href="./#faq">常见问题</a>
+        <a class="nav-gh" href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
         </a>
-        <div class="nav-right">
-          <button class="nav-toggle" aria-label="菜单" aria-expanded="false">
-            <span></span><span></span><span></span>
-          </button>
-          <div class="nav-links">
-            <a href="index.html">首页</a>
-            <a href="features.html">功能特性</a>
-            <a href="providers.html">翻译服务</a>
-            <a href="install.html">安装指南</a>
-            <a
-              class="nav-github"
-              href="https://github.com/Lokeily/hao-fan"
-              target="_blank"
-              rel="noopener"
-              aria-label="在 GitHub 上查看好翻"
-            >
-              <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
-            </a>
-            <a
-              class="nav-cta"
-              href="https://github.com/Lokeily/hao-fan/releases/latest"
-              target="_blank"
-              rel="noopener"
-              >下载</a
-            >
-          </div>
-        </div>
+        <a class="nav-cta" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">免费下载</a>
       </div>
-    </nav>
-
-    <div class="doc-layout">
-      <aside class="doc-toc" aria-label="服务条款目录">
-        <div class="toc-title">本页目录</div>
-        <a href="#accept">条款的接受</a>
-        <a href="#service">服务说明</a>
-        <a href="#license">使用许可</a>
-        <a href="#restrictions">使用限制与禁止行为</a>
-        <a href="#cncompliance">中国大陆合规义务</a>
-        <a href="#minors">未成年人使用</a>
-        <a href="#usercontent">用户内容与数据</a>
-        <a href="#thirdparty">第三方服务</a>
-        <a href="#ip">知识产权</a>
-        <a href="#disclaimer">免责声明</a>
-        <a href="#liability">责任限制</a>
-        <a href="#consumer">消费者权利保护</a>
-        <a href="#changes">条款的变更</a>
-        <a href="#termination">条款的终止</a>
-        <a href="#law">适用法律与争议解决</a>
-        <a href="#contact">联系我们</a>
-        <a href="#language">语言</a>
-      </aside>
-      <main class="doc">
-        <h1>📜 <span class="grad">服务条款</span></h1>
-        <p class="updated">最后更新：2026-08-22</p>
-
-        <p>
-          欢迎使用「好翻」（Open Translator CN）。本条款是你与好翻运营方之间，关于使用本扩展及其相关文档（统称「本服务」）的协议。本条款依据《中华人民共和国民法典》《中华人民共和国网络安全法》《中华人民共和国数据安全法》《中华人民共和国个人信息保护法》《中华人民共和国消费者权益保护法》及《中华人民共和国未成年人保护法》等中国大陆法律法规制定。安装、启用或以任何方式使用本服务，即表示你已阅读、理解并同意受本条款及《<a
-            href="privacy.html"
-            >隐私政策</a
-          >》约束。若你不同意本条款，请勿安装或使用本服务。
-        </p>
-
-        <div class="callout reveal">
-          好翻是一款<strong>开源、免费、直连自选 AI 的浏览器翻译扩展</strong>：本服务<strong>不设立用户账户、不收取费用、不提供订阅</strong>。因此，本条款不涉及购买、付费、退款或自动续订等内容。
-        </div>
-
-        <h2 id="accept">条款的接受</h2>
-        <ul>
-          <li>通过安装、启用或任何方式使用本服务，你确认已阅读、理解并同意受本条款约束。</li>
-          <li>若你代表某一组织行事，你声明已获得相应授权，使该组织受本条款约束。</li>
-          <li>你确认具备与使用本服务相适应的民事行为能力；如你为未成年人，应在其监护人同意并陪同下阅读、理解并同意本条款。</li>
-        </ul>
-
-        <h2 id="service">服务说明</h2>
-        <ul>
-          <li>好翻在你的浏览器本地运行，提供网页与选区的对照翻译、划词与悬停翻译、术语表、译文编辑、翻译缓存等功能。</li>
-          <li>翻译结果由你<strong>主动选择</strong>的第三方翻译服务商（如 DeepSeek、OpenAI、Google 等）生成；本服务仅作为调用与呈现的中间层，不对任何翻译的准确性、完整性或适用性作出保证。</li>
-          <li>我们可能不时更新功能、修复缺陷或调整界面，通常随版本说明发布；细微改动可能不另行个别通知。</li>
-        </ul>
-
-        <h2 id="license">使用许可</h2>
-        <ul>
-          <li>在遵守本条款的前提下，我们授予你一项个人的、非独占的、不可转让的、可撤销的许可，允许你在自有设备上安装和使用本服务。</li>
-          <li>本服务的源代码以 <strong>MIT 许可证</strong>开源，你可依据该许可证自由查看、修改与再分发；本条款仅约束你对本服务的使用，不替代亦不修改 MIT 许可证。</li>
-        </ul>
-
-        <h2 id="restrictions">使用限制与禁止行为</h2>
-        <p>使用本服务时，你<strong>不得</strong>：</p>
-        <ul>
-          <li>将本服务用于任何违反中华人民共和国法律法规或侵犯他人合法权益的用途；</li>
-          <li>逆向工程、反编译或试图提取源代码（MIT 许可证明确允许的情形除外）；</li>
-          <li>移除或遮盖本服务中的版权、商标或其他权利声明；</li>
-          <li>干扰、绕过或攻击本服务，或干扰、滥用其所依赖的任何第三方服务；</li>
-          <li>利用本服务批量抓取或滥用任何第三方翻译接口，从而违反该服务商的使用条款；</li>
-          <li>在未经书面许可的情况下，将本服务用于任何商业再分发。</li>
-        </ul>
-
-        <h2 id="cncompliance">中国大陆合规义务</h2>
-        <p>你使用本服务时，须遵守《中华人民共和国网络安全法》《数据安全法》《个人信息保护法》《互联网信息服务管理办法》等适用法律法规，并保证：</p>
-        <ul>
-          <li>不以任何方式利用本服务从事违法犯罪活动，或侵犯他人合法权益；</li>
-          <li>不利用翻译生成、复制、传播法律法规禁止的违法与不良信息（包括但不限于危害国家安全、泄露国家秘密、煽动民族仇恨与民族歧视、破坏民族团结、散布谣言、淫秽色情、赌博、暴力、恐怖、歧视、侮辱诽谤等）；</li>
-          <li>不利用本服务侵害他人知识产权、商业秘密或个人隐私；</li>
-          <li>不利用本服务从事任何危害数据安全或个人信息安全的活动。</li>
-        </ul>
-        <p>好翻在浏览器本地运行，翻译请求直连你选择的服务商；但这不改变你对自己所翻译、使用内容的法律责任——请确保你的使用行为符合中国大陆法律法规及你所在组织（如雇主、企业网络）的规定。若你发现任何违法内容或行为，可通过 <a href="https://github.com/Lokeily/hao-fan/issues" target="_blank" rel="noopener">GitHub Issues</a> 或国家互联网信息办公室（网信办）、12321 网络不良与垃圾信息举报受理中心等监管渠道举报。</p>
-
-        <h2 id="minors">未成年人使用</h2>
-        <ul>
-          <li>未满 14 周岁的未成年人，须在父母或其他监护人同意并陪同的情况下使用本服务；</li>
-          <li>已满 14 周岁未满 18 周岁的未成年人，建议在监护人指导与监督下使用；</li>
-          <li>监护人应监督未成年人的使用行为，并对其使用后果负责。</li>
-        </ul>
-
-        <h2 id="usercontent">用户内容与数据</h2>
-        <ul>
-          <li>「用户内容」指你在使用本服务时产生的或提供的本地数据，包括译文编辑、个人术语表、服务商配置与翻译缓存。</li>
-          <li>用户内容默认仅存储于你自己的浏览器本地，由你自行控制；运营方不在服务器收集或持有你的用户内容（详见《<a href="privacy.html">隐私政策</a>》）。</li>
-          <li>你对自己用户内容的合法性负责，并保留其全部权利。</li>
-        </ul>
-
-        <h2 id="thirdparty">第三方服务</h2>
-        <ul>
-          <li>使用翻译功能时，待翻译文本会发往你选择的第三方服务商，并由其按自身条款与隐私政策处理。我们对该等第三方的服务、数据实践或可用性不承担责任。</li>
-          <li>若你使用需付费的 API（例如部分 OpenAI 模型），你与该服务商之间的费用与条款由你自行约定与承担，与本服务无关。</li>
-          <li>接入任意 OpenAI 兼容接口时，你应对所填端点与凭据的安全负责。</li>
-        </ul>
-
-        <h2 id="ip">知识产权</h2>
-        <ul>
-          <li>本服务的名称、标识「好翻」及相关商标归运营方所有；源代码依 MIT 许可证授权。</li>
-          <li>除本条款明示许可外，你使用本服务不取得任何知识产权。</li>
-        </ul>
-
-        <h2 id="disclaimer">免责声明</h2>
-        <ul>
-          <li>本服务按「现状」提供，不作任何明示或暗示的担保，包括但不限于对适销性、特定用途适用性、非侵权或不间断运行的担保。</li>
-          <li>我们不保证翻译结果准确、无误或适用于任何特定目的；重要内容的翻译请以权威来源为准。</li>
-          <li>我们不对因使用或无法使用本服务所导致的任何损失负责，但法律法规规定不可排除的责任除外。</li>
-        </ul>
-
-        <h2 id="liability">责任限制</h2>
-        <ul>
-          <li>在适用法律允许的最大范围内，运营方不对任何间接、偶然、特殊或后果性损害承担责任。</li>
-          <li>因本服务免费提供，你同意在任何情形下，运营方对你承担的总责任以零为限。</li>
-          <li>本条<strong>不排除或限制</strong>适用法律不可排除的责任，例如故意或重大过失造成的人身损害，或《中华人民共和国消费者权益保护法》等法律赋予你的不可放弃的法定权利。</li>
-        </ul>
-
-        <h2 id="consumer">消费者权利保护</h2>
-        <ul>
-          <li>你依据《中华人民共和国消费者权益保护法》享有的各项权利，不因本条款而减损；若本条款任何约定与该等不可放弃的法定权利冲突，以法定权利为准。</li>
-          <li>本服务目前免费提供，不存在自动续费、预付款项或收费陷阱；如后续引入任何收费功能，我们将提前明示，并在征得你同意后提供。</li>
-          <li>若你所在司法辖区不允许本条款中的某项免责或责任限制，该约定仅在该辖区范围内不适用，其余约定继续有效。</li>
-        </ul>
-
-        <h2 id="changes">条款的变更</h2>
-        <ul>
-          <li>我们可能不时修订本条款；更新后的版本将发布于本页，并同步更新「最后更新」日期。</li>
-          <li>若变更属重大，我们会通过版本说明或项目渠道予以提示。变更发布后你继续使用本服务，即视为接受修订后的条款。</li>
-        </ul>
-
-        <h2 id="termination">条款的终止</h2>
-        <ul>
-          <li>你可随时通过卸载扩展、清除本地数据来终止使用，无需另行通知。</li>
-          <li>若你违反本条款或中华人民共和国法律法规，我们可中止或终止你使用本服务的许可。</li>
-          <li>终止后，本条款中依其性质应继续有效的部分（如知识产权、免责声明、责任限制）仍然有效。</li>
-        </ul>
-
-        <h2 id="law">适用法律与争议解决</h2>
-        <ul>
-          <li>本条款受<strong>中华人民共和国法律</strong>管辖，不考虑其冲突法规则。</li>
-          <li>因本条款或本服务产生的争议，双方应友好协商解决；协商不成的，提交运营方所在地有管辖权的人民法院诉讼解决。</li>
-        </ul>
-
-        <h2 id="contact">联系我们</h2>
-        <p>
-          关于本条款的疑问，可通过项目 GitHub 仓库的 Issues 与我们联系：<a
-            href="https://github.com/Lokeily/hao-fan"
-            target="_blank"
-            rel="noopener"
-            >github.com/Lokeily/hao-fan</a
-          >。
-        </p>
-
-        <h2 id="language">语言</h2>
-        <p>
-          本条款以<strong>中文</strong>为准。如提供其他语言译本，仅供方便参考；与中文版本不一致时，以中文版本为准。
-        </p>
-      </main>
     </div>
+  </div>
+</nav>
 
-    <section class="block" style="padding-top:8px;">
-      <div class="container">
-        <div class="center-cta reveal">
-          <a class="btn btn-primary js-download" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">下载扩展（<span class="js-latest-version">v0.1.23</span>）</a>
-          <a class="btn btn-ghost" href="index.html">返回首页 →</a>
-        </div>
-      </div>
-    </section>
+<header class="page-head">
+  <div class="container">
+    <span class="kicker">Terms of Service</span>
+    <h1>服务条款</h1>
+    <p class="sub">请在使用前仔细阅读本条款。安装或继续使用本扩展，即表示你已阅读并同意本条款的全部内容。</p>
+  </div>
+</header>
 
-        <footer>
-      <div class="footer-inner">
-        <div>© 2026 好翻（Open Translator CN）· 基于 <a href="https://github.com/Lokeily/hao-fan/blob/main/LICENSE" target="_blank" rel="noopener">MIT 许可证</a> 开源</div>
-        <div class="footer-links">
-          <a class="footer-github" href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener" aria-label="在 GitHub 上查看好翻">
-            <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
-            GitHub
-          </a>
-          <a href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">下载</a>
-          <a href="privacy.html">隐私政策</a>
-          <a href="terms.html" class="active">服务条款</a>
-        </div>
-      </div>
-    </footer>
-    <button class="to-top" aria-label="回到顶部" title="回到顶部">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-    </button>
-    <script src="assets/js/main.js" defer></script>
-  </body>
+<main class="container doc">
+  <p class="meta-line">生效日期：2026 年 8 月 23 日 ｜ 版本：v0.2.0 ｜ 适用产品：好翻浏览器扩展（open-translator-cn）及本官网</p>
+
+  <section>
+    <h2>一、协议的接受与范围</h2>
+    <p>本条款是你与「好翻」开源社区（以下称"我们"）之间就下载、安装及使用好翻浏览器扩展（以下简称"本软件"）所订立的协议。本条款适用于本软件的各版本及其配套官网。</p>
+    <p><b>若你不接受本条款的任何内容，请立即停止安装或使用本软件。</b>你一旦完成安装或开始使用，即视为已充分理解并接受本条款。</p>
+  </section>
+
+  <section>
+    <h2>二、软件性质：开源工具，按「现状」提供</h2>
+    <ul>
+      <li>本软件依据 <b>MIT 许可证</b>开源发布，除 MIT 许可证另有规定外，本条款是对其的补充而非替代。</li>
+      <li>本软件按<b>"现状"</b>提供，不附带任何明示或默示的担保。我们不对翻译结果的准确性、完整性、及时性作出任何保证。</li>
+      <li>本软件面向个人学习、研究与日常阅读辅助场景，<b>不构成专业翻译服务</b>，不应单独用于医疗、法律、金融、合同等对准确性有严格要求的专业场景；由此产生的一切后果由使用者自行承担。</li>
+      <li>我们不承诺软件功能持续不变，亦不承诺无限期的更新与维护；社区维护者可依实际情况决定开发节奏。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>三、无需注册；第三方服务的独立约束</h2>
+    <ul>
+      <li>使用本软件<b>无需注册任何账号</b>。</li>
+      <li>翻译功能需要你自行配置第三方服务商（如 DeepSeek、OpenAI 等）的 API Key。你与该服务商之间的权利义务关系适用<b>该服务商自己的服务条款与隐私政策</b>，与我们无关；由此产生的费用、限额、数据处理的后果亦由你与服务商之间解决。</li>
+      <li>你应妥善保管自己的 API Key；因你主动泄露、配置错误导致的损失由你自行承担。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>四、用户行为规范</h2>
+    <p>你在使用本软件时，应遵守<b>《中华人民共和国网络安全法》《中华人民共和国数据安全法》《中华人民共和国个人信息保护法》</b>及其他适用的法律法规，并且：</p>
+    <ul>
+      <li>不得将本软件用于翻译、传播法律法规禁止的内容，包括但不限于危害国家安全、破坏社会稳定、侵犯他人合法权益的内容；</li>
+      <li>不得对本软件的分发渠道进行反向混淆、伪造官方身份，或利用本软件从事恶意竞争、网络攻击等行为；</li>
+      <li>翻译受版权保护的网页或文档时，应尊重原作者著作权，译文仅供个人学习研究参考，<b>不得未经授权商用、转载或传播</b>；</li>
+      <li>违反上述规范的，我们有权在社区渠道予以谴责并保留依法追责的权利；情节严重的，请自行承担相应法律责任。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>五、知识产权</h2>
+    <ul>
+      <li>本软件源码依据 MIT 许可证向公众开放，版权归「好翻 Haofan contributors」所有。</li>
+      <li>各翻译引擎名称与商标归其各自权利人所有，本软件中提及仅用于说明兼容性。</li>
+      <li>经本软件翻译生成的译文的著作权归属与使用限制，取决于原文的权利状态与你所用服务商的用户协议，请自行判断并遵守。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>六、免责声明</h2>
+    <ul>
+      <li><b>翻译结果：</b>无论使用何种引擎，机器翻译均可能存在错误。译文仅供参考，不构成对原意准确表达的担保。</li>
+      <li><b>第三方服务：</b>你所配置的服务商可能出现限流、故障、停止服务等情形，导致翻译不可用；相关风险由你与服务商之间的关系决定。</li>
+      <li><b>网页兼容性：</b>因网站技术形态各异，个别页面可能出现排版异常或无法翻译的情形。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>七、责任限制</h2>
+    <p>在适用法律允许的最大范围内，对于因使用或无法使用本软件导致的间接性、偶然性、特殊性或后果性损失（包括但不限于业务中断、数据丢失、利润损失），我们不承担责任。本条不排除依据法律不得排除或限制的责任（例如因故意或重大过失造成损害、或造成他人人身损害时的法定责任），亦不影响 MIT 许可证项下的权利与限制。</p>
+  </section>
+
+  <section>
+    <h2>八、法律适用与争议解决</h2>
+    <ul>
+      <li>本条款的订立、效力、解释与争议解决，均适用<b>中华人民共和国法律</b>（为免歧义，不含港澳台地区法律）。</li>
+      <li>因本条款产生的或与本软件使用相关的争议，双方应首先友好协商解决；协商不成的，任何一方均可向<b>依法享有管辖权的人民法院</b>提起诉讼。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>九、条款的变更</h2>
+    <p>随着软件演进或法律法规变化，我们可能适时修订本条款。修订后的条款将通过本页面公布并标注生效日期；若你在条款变更后继续使用本软件，即视为接受修订后的条款。重要变更亦会随版本发布说明提示。</p>
+  </section>
+
+  <section>
+    <h2>十、联系我们</h2>
+    <p>关于本条款的任何问题，欢迎通过 <a href="https://github.com/Lokeily/hao-fan/issues" style="color:var(--accent)">GitHub Issues</a> 与社区联系；安全相关问题请遵循 <a href="https://github.com/Lokeily/hao-fan/blob/main/SECURITY.md" style="color:var(--accent)">SECURITY.md</a> 的私下披露流程。</p>
+  </section>
+</main>
+
+<footer>
+  <div class="container foot-grid">
+    <div class="foot-brand">
+      <a class="brand" href="./"><img src="assets/img/icon-128.png" alt="" /><span>好翻 Haofan</span></a>
+      <p>开源、免费、直连自选 AI 的沉浸式双语网页翻译扩展。让每一次外文阅读，都顺畅自然。</p>
+    </div>
+    <div>
+      <h4>产品</h4>
+      <ul>
+        <li><a href="features.html">功能特性</a></li>
+        <li><a href="compare.html">与众不同</a></li>
+        <li><a href="install.html">下载安装</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/releases" target="_blank" rel="noopener">更新日志</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>资源</h4>
+      <ul>
+        <li><a href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">GitHub 仓库</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/issues" target="_blank" rel="noopener">问题反馈</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">参与贡献</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>法律与合规</h4>
+      <ul>
+        <li><a href="privacy.html">隐私政策</a></li>
+        <li><a href="terms.html">服务条款</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="copyright container">© 2026 好翻 Haofan contributors · 基于 MIT 协议开源 · 由社区驱动维护<br />本网站部署于境外服务器（GitHub Pages）· 本扩展为开源工具，按「现状」提供</div>
+</footer>
+
+<script src="assets/js/site.js"></script>
+</body>
 </html>

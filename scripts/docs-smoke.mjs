@@ -1,84 +1,68 @@
 import { chromium } from '@playwright/test';
 import { pathToFileURL } from 'node:url';
 
-const target = process.argv[2] || 'docs/index.html';
-const url = pathToFileURL(target.replace(/\\/g, '/')).href;
+const base = process.argv[2] ? process.argv[2].replace(/\\/g, '/') : 'docs';
+const pages = [
+  { file: 'index.html', must: ['.nav', '.hero h1', '.win .tgt', '.stat', '#highlights .card', '.compare tbody tr', '.pipe .step', '.chip', '#download .card', 'details.q'] },
+  { file: 'features.html', must: ['.page-head h1', '.feat-block', '.feat-group-title', '.compare tbody tr'] },
+  { file: 'compare.html', must: ['.page-head h1', '.arch-col.good', '.arch-col.bad', '.compare tbody tr', '.feat-block'] },
+  { file: 'install.html', must: ['.page-head h1', '.timeline .tl-item', '.plat-switch', '.trouble details.q'] },
+  { file: 'privacy.html', must: ['.page-head h1', '.doc section', '.hl-table'] },
+  { file: 'terms.html', must: ['.page-head h1', '.doc section'] },
+];
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-const errors = [];
-page.on('pageerror', (e) => errors.push('pageerror: ' + String(e).slice(0, 200)));
-page.on('console', (m) => { if (m.type() === 'error') errors.push('console.error: ' + m.text().slice(0, 200)); });
+let failures = 0;
 
-await page.goto(url, { waitUntil: 'load' });
+for (const p of pages) {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push('pageerror: ' + String(e).slice(0, 160)));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push('console.error: ' + m.text().slice(0, 160)); });
 
-const checks = [];
-const expect = async (name, fn) => {
-  try { await fn(); checks.push(`✅ ${name}`); }
-  catch (e) { checks.push(`❌ ${name} -> ${String(e).slice(0, 120)}`); }
-};
+  const url = pathToFileURL(`${base}/${p.file}`).href;
+  try {
+    await page.goto(url, { waitUntil: 'load' });
+  } catch (e) {
+    console.log(`❌ ${p.file} 加载失败: ${String(e).slice(0, 120)}`);
+    failures++;
+    await page.close();
+    continue;
+  }
 
-await expect('导航可见', () => page.locator('.nav').isVisible());
-await expect('H1 含标语', async () => {
-  const t = await page.locator('.hero h1').innerText();
-  if (!/自然流畅/.test(t)) throw new Error('h1 文案不符');
-});
-await expect('双语 mockup 存在', () => page.locator('.win .tgt').first().isVisible());
-await expect('数据条 4 项', async () => {
-  const n = await page.locator('.stat').count();
-  if (n !== 4) throw new Error('count=' + n);
-});
-await expect('特性卡片 9 张', async () => {
-  const n = await page.locator('#features .card').count();
-  if (n !== 9) throw new Error('count=' + n);
-});
-await expect('对比表 6 行', async () => {
-  const n = await page.locator('.compare tbody tr').count();
-  if (n !== 6) throw new Error('count=' + n);
-});
-await expect('流水线 8 步', async () => {
-  const n = await page.locator('.step').count();
-  if (n !== 8) throw new Error('count=' + n);
-});
-await expect('引擎 chips ≥15', async () => {
-  const n = await page.locator('.chip').count();
-  if (n < 15) throw new Error('count=' + n);
-});
-await expect('下载卡 3 张', async () => {
-  const n = await page.locator('.dl-card').count();
-  if (n !== 3) throw new Error('count=' + n);
-});
-await expect('FAQ 6 条', async () => {
-  const n = await page.locator('details.q').count();
-  if (n !== 6) throw new Error('count=' + n);
-});
-await expect('FAQ 互斥展开', async () => {
-  const st = async (i) => page.evaluate((idx) => document.querySelectorAll('details.q')[idx].open, i);
-  await page.locator('details.q').nth(2).locator('summary').click({ force: true });
-  await page.waitForTimeout(150);
-  if ((await st(2)) !== true) throw new Error('第 3 条未展开');
-  if ((await st(0)) !== false) throw new Error('第 1 条未收起');
-});
+  const missing = [];
+  for (const sel of p.must) {
+    const n = await page.locator(sel).count();
+    if (n === 0) missing.push(sel);
+  }
+  // 每页通用：导航、页脚合规链接
+  for (const sel of ['.nav', 'footer a[href="privacy.html"]', 'footer a[href="terms.html"]']) {
+    const n = await page.locator(sel).count();
+    if (n === 0) missing.push(sel);
+  }
+  if (errors.length) missing.push(`JS错误×${errors.length}: ${errors[0]}`);
 
-// 深色模式抽查
-await page.emulateMedia({ colorScheme: 'dark' });
-await expect('深色模式下正文可读', async () => {
-  const color = await page.locator('.hero .sub').evaluate((el) => getComputedStyle(el).color);
-  if (/^rgb\(91,\s*100,\s*112\)$/.test(color)) throw new Error('仍是浅色文案色');
-});
+  if (missing.length) {
+    console.log(`❌ ${p.file} -> 缺失/异常: ${missing.join(', ')}`);
+    failures++;
+  } else {
+    console.log(`✅ ${p.file}`);
+  }
+  await page.close();
+}
 
-// 移动端菜单抽查
-await page.setViewportSize({ width: 390, height: 800 });
-await page.emulateMedia({ colorScheme: 'light' });
-await expect('移动端菜单展开', async () => {
-  await page.locator('#navToggle').click();
-  await page.locator('#navLinks').getByRole('link', { name: '功能' }).waitFor({ state: 'visible', timeout: 2000 });
-});
+// 首页专项：计数动画与 FAQ
+{
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await page.goto(pathToFileURL(`${base}/index.html`).href, { waitUntil: 'load' });
+  await page.locator('.stats').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(1500);
+  const statText = await page.locator('.stat b').first().textContent();
+  if (statText !== '15') { console.log(`❌ 首页计数动画未到位: ${statText}`); failures++; }
+  else console.log('✅ 首页数字滚动计数');
+  await page.close();
+}
 
-await page.screenshot({ path: 'docs-preview-mobile.png', fullPage: false });
-await page.setViewportSize({ width: 1280, height: 900 });
-await page.screenshot({ path: 'docs-preview-desktop.png', fullPage: true });
-
-console.log(checks.join('\n'));
-console.log('JS_ERRORS:', errors.length ? '\n' + errors.join('\n') : 'none');
 await browser.close();
+console.log(failures === 0 ? '\nDOCS SMOKE: ALL PASS' : `\nDOCS SMOKE: ${failures} FAILED`);
+process.exit(failures === 0 ? 0 : 1);

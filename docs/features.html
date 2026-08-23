@@ -4,16 +4,258 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>功能特性 — 好翻 Haofan</title>
+<meta name="description" content="好翻全部功能详解：沉浸式双语对照、流式输出、上下文感知、质量自检、朗读译文 TTS、翻译历史、多引擎路由、图片翻译与五层省 Token 机制。" />
 <link rel="icon" type="image/png" href="assets/img/icon-128.png" />
-<meta http-equiv="refresh" content="0; url=index.html#features" />
-<style>
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-display:grid;place-items:center;min-height:100vh;margin:0;background:#f7f8fa;color:#101418}
-a{color:#0a6cff}
-</style>
+<link rel="stylesheet" href="assets/css/site.css" />
 </head>
 <body>
-<p>本页已合并进新版官网，正在为你跳转… 若未跳转请<a href="index.html#features">点击这里</a>。</p>
-<script>location.replace("index.html#features");</script>
+
+<nav class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="./"><img src="assets/img/icon-128.png" alt="好翻 logo" /><span>好翻<i>Haofan</i></span></a>
+    <div class="nav-right">
+      <button class="nav-toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false"><span></span><span></span><span></span></button>
+      <div class="nav-links" id="navLinks">
+        <a class="op" href="./">首页</a>
+        <a class="op active" href="features.html">功能特性</a>
+        <a class="op" href="compare.html">与众不同</a>
+        <a class="op" href="install.html">安装指南</a>
+        <a class="op" href="./#faq">常见问题</a>
+        <a class="nav-gh" href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+        <a class="nav-cta" href="#top-download">免费下载</a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<header class="page-head hero-bg" id="top-download">
+  <div class="container">
+    <span class="kicker">Features</span>
+    <h1>每一项功能，都为「读懂」服务</h1>
+    <p class="sub">从提取到渲染的完整流水线，加上三处即译入口与五层省钱机制——这是好翻的全部能力清单。</p>
+  </div>
+</header>
+
+<main class="container" style="padding-bottom:30px">
+
+  <div class="feat-group-title reveal">📖 核心翻译体验</div>
+
+  <div class="feat-block reveal">
+    <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h20v12H2z"/><path d="M6 8h8M6 12h5M14 12h4"/></svg></div>
+    <div>
+      <h3>沉浸式双语对照</h3>
+      <p>原文原封不动，译文以独立节点贴在每段正下方（Shadow DOM 隔离），随页面滚动自然跟随。</p>
+      <ul>
+        <li>双栏 / 多列 / 网格卡片布局中，译文始终留在各自栏内，不串位</li>
+        <li>无语义块的纯文本容器按行拆分，每行译文紧跟对应原文行</li>
+        <li>四种显示样式可切换：默认 / 蓝色虚线 / 下划线 / 高亮块</li>
+        <li>SPA 动态内容自动补译：弹窗、无限滚动、Tab 显隐都能跟上</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-block teal reveal">
+    <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+    <div>
+      <h3>流式输出 · 首字即显</h3>
+      <p>划词、悬停、点段落、输入框四处交互全部走 SSE 长连接逐字回填，首字毫秒级出现。</p>
+      <ul>
+        <li>15 秒空闲超时兜底；通道异常自动回退普通请求，保证不漏译</li>
+        <li>放弃等待时主动通知后台取消生成，同一文本绝不双份计费</li>
+        <li>整页翻译仍走批量协议：一次请求译多段，比逐条流式省得多</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-block violet reveal">
+    <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+    <div>
+      <h3>划词 · 悬停 · 输入框，三处即译</h3>
+      <p>覆盖所有阅读场景的即译入口，结果浮层统一支持复制与朗读。</p>
+      <ul>
+        <li>划词：选中文字出现圆形「译」按钮，结果浮层带原文对照</li>
+        <li>悬停：段落停留 500ms 出气泡，可固定钉住慢慢读</li>
+        <li>输入框：聚焦即出按钮，译文浮层便于写邮件 / 发帖前润色</li>
+        <li>手动模式下点击段落直接翻译，整页零打扰</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-block amber reveal">
+    <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+    <div>
+      <h3>图片翻译</h3>
+      <p>右键网页图片或上传本地图片，视觉模型 OCR 识别文字区域并叠加译文色块。</p>
+      <ul>
+        <li>漫画、截图、图表里的文字都能读出来并翻译</li>
+        <li>结果面板列出全部文字段，支持开关叠加层对照原图</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-group-title reveal">🧠 智能与质量</div>
+
+  <div class="feat-block violet reveal">
+    <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+    <div>
+      <h3>上下文感知翻译</h3>
+      <p>结合页面标题与前一段译文的滑动窗口，让模型像读过全文一样下笔。</p>
+      <ul>
+        <li>长文的代词指代（it / they / 该方法）前后一致</li>
+        <li>跨段术语口径统一，不会一段一个叫法</li>
+        <li>上下文作为「数据」注入用户消息而非系统提示，防页面标题注入攻击</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-block amber reveal">
+    <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+    <div>
+      <h3>翻译质量自检</h3>
+      <p>译后自动校验关键信息保真度，这是「接近人工翻译」的安全网。</p>
+      <ul>
+        <li>校验数字、URL、邮箱、占位符（%s、{name}）、代码 token 是否保留</li>
+        <li>缺失时追加保真指令自动校正重试一次，仍缺失则标记 🚩 提示而不误导</li>
+        <li>比较前做等价归一化：千分位、全角、日期改写不误报</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-block reveal">
+    <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+    <div>
+      <h3>多引擎智能路由</h3>
+      <p>不同场景自动选择最合适的引擎，故障时无缝切换。</p>
+      <ul>
+        <li>主引擎 401/403/限流/额度不足时，按顺序自动切换备用引擎</li>
+        <li>超过阈值的长文自动路由到「强模型」，短文继续用便宜模型</li>
+        <li>15 家引擎随时切换，含任意 OpenAI 兼容自建端点</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-block teal reveal">
+    <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+    <div>
+      <h3>译文可编辑 · 术语自学习</h3>
+      <p>你对译文的每一次修正，都会变成词库里的一条规则。</p>
+      <ul>
+        <li>悬停译文即可编辑，Enter 提交、Esc 还原</li>
+        <li>LLM 对比原文与修改稿，自动抽取术语写入个人词库并即时生效</li>
+        <li>短术语才入库，避免整句污染词表</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-group-title reveal">✨ v0.2.0 新增</div>
+
+  <div class="feat-block reveal">
+    <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/></svg></div>
+    <div>
+      <h3>朗读译文（TTS）</h3>
+      <p>划词面板、悬停气泡、输入框结果一键朗读，外语学习与听读场景利器。</p>
+      <ul>
+        <li>按目标语言自动匹配发音（中/英/日/韩等 18 语）</li>
+        <li>点击切换停止，自然结束自动复位；语速略放缓更清晰</li>
+        <li>基于浏览器内置语音合成，零依赖、离线可用</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-block teal reveal">
+    <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+    <div>
+      <h3>翻译历史</h3>
+      <p>弹窗新增「历史」标签页，查过的词句随时找回。</p>
+      <ul>
+        <li>记录划词 / 输入框 / 弹窗三类主动翻译，悬停噪声不入册</li>
+        <li>关键词搜索、点击回填重译、一键清空</li>
+        <li>本地存储上限 200 条，同原文+译文去重置顶</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-block violet reveal">
+    <div class="ico"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
+    <div>
+      <h3>设置导出 / 导入</h3>
+      <p>换机迁移、备份恢复，一个 JSON 文件搞定。</p>
+      <ul>
+        <li>引擎、语言偏好、翻译模式、术语表、系统提示词、站点列表全量打包</li>
+        <li>API Key 默认剥离，需要时可显式勾选包含</li>
+        <li>导入严格校验字段类型，脏数据无法进入存储</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="feat-group-title reveal" id="save">💰 五层省 Token 机制</div>
+
+  <div class="compare-wrap reveal">
+    <table class="compare">
+      <thead><tr><th>机制</th><th>原理</th><th>效果</th></tr></thead>
+      <tbody>
+        <tr><td><b>句子级缓存</b></td><td>按句缓存 + 归一化匹配，SPA 微变只重译变化句；缺失句合并为一次批量请求</td><td>改一句话 ≠ 重付全篇</td></tr>
+        <tr><td><b>整段 LRU 缓存</b></td><td>相同文本 30 天有效，上限 2000 条，可在设置中清空</td><td>重复阅读零请求</td></tr>
+        <tr><td><b>术语库命中</b></td><td>整条命中个人术语表直接返回，不发请求</td><td>专有名词零 Token</td></tr>
+        <tr><td><b>目标语言跳过</b></td><td>检测到段落已是目标语言，本地直接跳过并提示</td><td>杜绝「中译中」</td></tr>
+        <tr><td><b>动态冷却 + 数字补丁</b></td><td>行情/时钟类元素仅数字变化时就地替换译文数字，8 秒冷却合并抖动</td><td>高频刷新不再烧钱</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="text-align:center;color:var(--muted);font-size:13px;margin-top:14px" class="reveal">
+    另有「手动模式」：整页不自动翻译，点哪段译哪段，Token 开销完全由你掌控。
+  </p>
+
+</main>
+
+<section style="padding-top:10px">
+  <div class="container">
+    <div class="cta reveal">
+      <h2>功能再多，不如亲自一试</h2>
+      <p>免 Key 的 Google 翻译通道让你三十秒上手。</p>
+      <a class="btn" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">立即免费下载 →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container foot-grid">
+    <div class="foot-brand">
+      <a class="brand" href="./"><img src="assets/img/icon-128.png" alt="" /><span>好翻 Haofan</span></a>
+      <p>开源、免费、直连自选 AI 的沉浸式双语网页翻译扩展。让每一次外文阅读，都顺畅自然。</p>
+    </div>
+    <div>
+      <h4>产品</h4>
+      <ul>
+        <li><a href="features.html">功能特性</a></li>
+        <li><a href="compare.html">与众不同</a></li>
+        <li><a href="install.html">下载安装</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/releases" target="_blank" rel="noopener">更新日志</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>资源</h4>
+      <ul>
+        <li><a href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">GitHub 仓库</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/issues" target="_blank" rel="noopener">问题反馈</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">参与贡献</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>法律与合规</h4>
+      <ul>
+        <li><a href="privacy.html">隐私政策</a></li>
+        <li><a href="terms.html">服务条款</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="copyright container">© 2026 好翻 Haofan contributors · 基于 MIT 协议开源 · 由社区驱动维护<br />本扩展为开源工具，按「现状」提供；翻译结果由用户所配置的第三方服务商生成。</div>
+</footer>
+
+<script src="assets/js/site.js"></script>
 </body>
 </html>

@@ -1,317 +1,173 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>隐私政策 · 好翻（Open Translator CN）</title>
-    <meta name="description" content="好翻（Open Translator CN）隐私政策：运营方不在服务器收集任何个人数据；不出售或共享个人信息、无 Cookie 追踪；翻译内容仅发往你主动选择的第三方服务商。本政策依据《中华人民共和国个人信息保护法》《数据安全法》《网络安全法》等中国大陆法律法规制定，含用户权利、未成年人保护与投诉渠道。" />
-    <meta property="og:title" content="隐私政策 · 好翻（Open Translator CN）" />
-    <meta
-      property="og:description"
-      content="好翻隐私政策：运营方不在服务器收集任何个人数据，无 Cookie 追踪；翻译内容仅发往你主动选择的第三方服务商。依据中国大陆法律法规制定。"
-    />
-    <link rel="icon" type="image/png" href="assets/img/icon-128.png" />
-    <link rel="apple-touch-icon" href="assets/img/icon-128.png" />
-    <script>document.documentElement.classList.add('js');</script>
-    <link rel="stylesheet" href="assets/css/style.css" />
-  </head>
-  <body class="doc-page">
-    <div class="scroll-progress"></div>
-    <nav class="nav">
-      <div class="nav-inner">
-        <a class="brand" href="index.html">
-          <img src="assets/img/icon-128.png" alt="好翻" />
-          <span>好翻</span>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>隐私政策 — 好翻 Haofan</title>
+<meta name="description" content="好翻（Haofan）隐私政策：本扩展采用本地优先架构，不收集、不上传任何浏览内容与行为数据；API Key 仅存本机浏览器。依据《个人信息保护法》等法律法规制定。" />
+<link rel="icon" type="image/png" href="assets/img/icon-128.png" />
+<link rel="stylesheet" href="assets/css/site.css" />
+</head>
+<body>
+
+<nav class="nav">
+  <div class="container nav-inner">
+    <a class="brand" href="./"><img src="assets/img/icon-128.png" alt="好翻 logo" /><span>好翻<i>Haofan</i></span></a>
+    <div class="nav-right">
+      <button class="nav-toggle" id="navToggle" aria-label="打开菜单" aria-expanded="false"><span></span><span></span><span></span></button>
+      <div class="nav-links" id="navLinks">
+        <a class="op" href="./">首页</a>
+        <a class="op" href="features.html">功能特性</a>
+        <a class="op" href="compare.html">与众不同</a>
+        <a class="op" href="install.html">安装指南</a>
+        <a class="op" href="./#faq">常见问题</a>
+        <a class="nav-gh" href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
         </a>
-        <div class="nav-right">
-          <button class="nav-toggle" aria-label="菜单" aria-expanded="false">
-            <span></span><span></span><span></span>
-          </button>
-          <div class="nav-links">
-            <a href="index.html">首页</a>
-            <a href="features.html">功能特性</a>
-            <a href="providers.html">翻译服务</a>
-            <a href="install.html">安装指南</a>
-            <a
-              class="nav-github"
-              href="https://github.com/Lokeily/hao-fan"
-              target="_blank"
-              rel="noopener"
-              aria-label="在 GitHub 上查看好翻"
-            >
-              <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
-            </a>
-            <a
-              class="nav-cta"
-              href="https://github.com/Lokeily/hao-fan/releases/latest"
-              target="_blank"
-              rel="noopener"
-              >下载</a
-            >
-          </div>
-        </div>
+        <a class="nav-cta" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">免费下载</a>
       </div>
-    </nav>
-
-    <div class="doc-layout">
-      <aside class="doc-toc" aria-label="隐私政策目录">
-        <div class="toc-title">本页目录</div>
-        <a href="#scope">适用范围</a>
-        <a href="#controller">运营方与信息处理者</a>
-        <a href="#collect">我们收集哪些信息</a>
-        <a href="#notcollected">我们不会自动收集的信息</a>
-        <a href="#handling">信息如何处理</a>
-        <a href="#thirdparty">第三方服务</a>
-        <a href="#noshare">我们不会出售或共享</a>
-        <a href="#legal">法律依据</a>
-        <a href="#retention">信息存储与保留</a>
-        <a href="#rights">你的权利</a>
-        <a href="#cookies">Cookie 与类似技术</a>
-        <a href="#children">未成年人保护</a>
-        <a href="#security">安全</a>
-        <a href="#links">第三方链接</a>
-        <a href="#changes">本政策的变更</a>
-        <a href="#disclaimer">免责声明</a>
-        <a href="#contact">联系我们与投诉渠道</a>
-        <a href="#permissions">权限说明</a>
-      </aside>
-      <main class="doc">
-      <h1>🔒 <span class="grad">隐私政策</span></h1>
-      <p class="updated">最后更新：2026-08-22</p>
-
-      <p>
-        「好翻」（Open Translator CN）是一款开源、免费、直连自选 AI 的浏览器翻译扩展。本政策依据《中华人民共和国个人信息保护法》《中华人民共和国数据安全法》《中华人民共和国网络安全法》及《中华人民共和国未成年人保护法》等中国大陆法律法规制定，以清晰、诚实的方式说明：扩展及其运营方如何对待你的信息、与你选定的第三方服务相关的信息流向，以及你所享有的权利。我们力求措辞准确——不夸大，也不回避。
-      </p>
-      <p>
-        好翻的运营方为中国大陆境内的个人开发者，主要面向中国大陆用户提供服务。本政策一切以中国大陆法律法规为准。
-      </p>
-
-      <div class="callout reveal">
-        核心结论：<strong>好翻的运营方不在任何服务器上收集、存储或处理你的个人信息，也不出售或共享任何个人信息。</strong>扩展运行在你的浏览器本地；翻译内容只会发往<strong>你主动选择</strong>的翻译服务商，并由该服务商按其自身条款处理。
-      </div>
-
-      <div class="flow reveal">
-        <div class="flow-node"><strong>你的浏览器</strong><small>扩展本地运行</small></div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-node"><strong>本地处理</strong><small>缓存 · 术语 · Key 隔离</small></div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-node"><strong>你选的服务商</strong><small>直连 · 不经中转</small></div>
-      </div>
-
-      <h2 id="scope" class="reveal">一、适用范围</h2>
-      <p>本政策适用于：</p>
-      <ul>
-        <li><strong>好翻浏览器扩展</strong>：包括其在你设备上的全部功能（整页翻译、划词翻译、悬停翻译、图片翻译、术语表、设置等）；</li>
-        <li><strong>本官方网站</strong>（含文档与下载指引）：本网站为静态页面，不使用 Cookie、不部署统计或广告追踪脚本，也不会向你索取个人信息。</li>
-      </ul>
-      <p>本政策不涵盖你自行选用的第三方翻译服务商，其信息处理由其各自的服务条款与隐私政策约束，请另行查阅。</p>
-
-      <h2 id="controller" class="reveal">二、运营方与信息处理者</h2>
-      <p>
-        好翻是由个人开发者以开源项目形式维护的浏览器扩展，源代码托管于 GitHub（仓库：<a href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">Lokeily/hao-fan</a>），目前未设立独立法人实体。
-      </p>
-      <p>
-        由于扩展不在任何服务器上收集或处理个人信息（详见下文），<strong>运营方通常并不作为翻译内容的「信息处理者」</strong>。你的信息主要在自己的设备本地处理，或在你明确指示下交由你选定的第三方服务商处理。若你对本政策或我们的数据处理实践有疑问，可通过文末联系方式与我们沟通。
-      </p>
-
-      <h2 id="collect" class="reveal">三、我们收集哪些信息</h2>
-      <p><strong>在服务器层面：我们不收集任何信息。</strong></p>
-      <ul>
-        <li>没有遥测、没有广告追踪、没有用户行为统计；</li>
-        <li>没有账号体系，不要求注册或登录；</li>
-        <li>没有自有后端服务器，也没有服务器端日志。</li>
-      </ul>
-      <p>你在使用扩展时产生的所有数据，均只存在于<strong>你的设备本地</strong>或<strong>你选择的翻译服务商处</strong>（详见下节）。</p>
-
-      <h2 id="notcollected" class="reveal">四、我们不会自动收集的信息</h2>
-      <p>
-        与许多同类在线服务不同，好翻<strong>不通过任何服务器或后端自动收集</strong>以下常见信息：
-      </p>
-      <ul>
-        <li>IP 地址与地理位置；</li>
-        <li>设备标识符（如设备 ID、浏览器指纹）；</li>
-        <li>使用频率、功能使用等使用统计；</li>
-        <li>崩溃或错误日志（翻译过程产生的错误仅在本机处理，不会上报）；</li>
-        <li>Cookie、像素标签或同类追踪技术（扩展本身不使用，本网站亦不使用）。</li>
-      </ul>
-      <p>上述信息的缺失，正是「运营方不在服务器收集数据」这一结论的直接体现。</p>
-
-      <h2 id="handling" class="reveal">五、信息如何处理</h2>
-
-      <h3>翻译内容（网页文本 / 图片）</h3>
-      <ul>
-        <li>当你发起翻译时，待翻译的网页文本或图片会直接发送到你<strong>在设置中主动选择</strong>的翻译服务商（如 DeepSeek、OpenAI、智谱、腾讯混元、Google 翻译等）；</li>
-        <li>数据经由你配置的 API 端点传输；<strong>本项目不参与、不中转、不留存</strong>任何翻译内容；</li>
-        <li>译文与原文仅缓存在你自己的浏览器本地（默认 30 天有效期、容量上限 LRU 2000 条，可在设置中关闭或清空）。</li>
-      </ul>
-
-      <h3>API 密钥</h3>
-      <ul>
-        <li>各服务商的 API Key 仅保存在浏览器本地 <code>storage.local</code>，并按服务商隔离存储；</li>
-        <li>Key 仅随对应的翻译请求发送给该服务商，<strong>绝不会</strong>被发送给我们或任何第三方；</li>
-        <li>卸载扩展或清除站点数据后，密钥即被删除。</li>
-      </ul>
-
-      <h3>其他本地数据</h3>
-      <ul>
-        <li>暂停翻译的网站列表、你自定义的术语表、翻译统计与偏好设置，均只保存在浏览器本地，不会上传；</li>
-        <li>图片翻译的临时文件存入浏览器 <code>IndexedDB</code>，读取后即删除，最长 24 小时内自动清理。</li>
-      </ul>
-
-      <h3>本网站</h3>
-      <p>本网站为静态托管，不设置 Cookie、不运行分析脚本、不收集表单信息。你通过 GitHub 与我们交互时，相关数据处理遵循 GitHub 的隐私政策。</p>
-
-      <h2 id="thirdparty" class="reveal">六、第三方服务</h2>
-      <p>
-        翻译能力由<strong>你自行选择</strong>的服务商提供。一旦你选用某家服务商，相应的网页内容、图片与 API Key 将按其指令发往该服务商，并受其服务条款与隐私政策约束。不同服务商的数据处理地点、保留期限与合规资质各不相同，请在使用前自行评估。
-      </p>
-      <p>
-        其中，「Google 翻译（免 Key）」使用的是非官方公开端点，<strong>无服务等级保证</strong>，可能随时限流或变更，仅建议用于体验；正式使用请配置支持 API Key 的服务。我们对任何第三方服务商的数据处理行为<strong>不承担责任</strong>。
-      </p>
-
-      <h2 id="noshare" class="reveal">七、我们不会出售或共享你的个人信息</h2>
-      <p>
-        我们<strong>不会出售你的个人信息</strong>，也不会出于商业目的将其共享给第三方。由于好翻不在服务器端持有任何个人数据，实际上不存在可供我们对外披露或出售的用户数据。
-      </p>
-      <p>
-        唯一的数据流出，发生在你<strong>主动选择</strong>某家翻译服务商之时：对应的翻译内容会按其指令发往该服务商（详见「第三方服务」一节）。这一流向由你的明确选择触发，而非由我们对外披露或共享。
-      </p>
-
-      <h2 id="legal" class="reveal">八、法律依据</h2>
-      <p>
-        好翻的「本地优先、直连服务商」架构，与中国大陆现行法律的要求天然一致。依据《中华人民共和国个人信息保护法》等法律法规，处理活动的合法性基础如下：
-      </p>
-      <ul>
-        <li><strong>本地处理</strong>：扩展在本地处理你的设置、缓存与术语表，属于为你使用本服务所必需，符合「合法、正当、必要、诚信」原则与最小必要要求；</li>
-        <li><strong>向服务商发送内容</strong>：将内容发送给你所选定的第三方服务商，基于你通过选择服务商并触发翻译而作出的<strong>同意</strong>，你可随时在设置中更换或停止；</li>
-        <li><strong>不收集敏感个人信息</strong>：我们<strong>不收集</strong>生物识别、行踪轨迹、金融账户等敏感个人信息，也不存在对其的处理活动。</li>
-      </ul>
-
-      <h2 id="retention" class="reveal">九、信息存储与保留</h2>
-      <ul>
-        <li>所有由扩展产生的数据均存储于你的浏览器本地，<strong>由你完全掌控</strong>；</li>
-        <li>翻译缓存默认保留 30 天（容量上限 LRU 2000 条），可在设置中缩短、关闭或手动清空；</li>
-        <li>卸载扩展、清除浏览器站点数据，或移除对应服务商配置，即可彻底删除相关本地数据。</li>
-      </ul>
-
-      <h2 id="rights" class="reveal">十、你的权利</h2>
-      <p>
-        依据《中华人民共和国个人信息保护法》，你对个人信息享有<strong>查阅、复制、更正、补充、删除</strong>的权利，以及<strong>撤回同意</strong>、要求说明处理规则的权利。由于扩展不向服务器上传任何个人数据，上述权利主要通过「本地数据」方式行使：
-      </p>
-      <ul>
-        <li><strong>查阅、复制、更正、删除</strong>：通过扩展设置查看与修改配置、清空缓存 / 术语表，或直接卸载扩展即可完成；</li>
-        <li><strong>撤回同意</strong>：在设置中更换或移除服务商配置、暂停本站翻译，或卸载扩展，即撤回对相应处理活动的同意；</li>
-        <li><strong>已发送给第三方服务商的数据</strong>：请按该服务商的流程向其提出请求；</li>
-        <li><strong>其他疑问</strong>：可通过下方联系方式向我们提出，我们将在不持有数据的前提下尽力协助指引。</li>
-      </ul>
-
-      <h2 id="cookies" class="reveal">十一、Cookie 与类似技术</h2>
-      <ul>
-        <li><strong>扩展</strong>：好翻扩展不设置或使用任何 Cookie、本地追踪脚本或广告标识符；</li>
-        <li><strong>本网站</strong>：本官方网站为静态托管页面，不设置 Cookie、不运行分析或广告追踪脚本；</li>
-        <li><strong>GitHub</strong>：你通过 GitHub 与我们交互时，相关 Cookie 与数据处理遵循 GitHub 的政策；</li>
-        <li>你可以在浏览器设置中管理或清除网站数据，这不会影响扩展在本地保存的设置与缓存（那些存储在你浏览器本地，由你掌控）。</li>
-      </ul>
-
-      <h2 id="children" class="reveal">十二、未成年人保护</h2>
-      <p>
-        好翻并非专门针对未成年人设计，我们亦不主动收集任何人的个人信息（含未成年人）。依据《中华人民共和国未成年人保护法》与《个人信息保护法》关于<strong>不满十四周岁未成年人个人信息</strong>的规定，我们<strong>不会主动收集</strong>未满 14 周岁未成年人的个人信息。若我们发现或接到反馈，在未获监护人同意的情况下收集了未成年人的个人信息，将尽力尽快删除。
-      </p>
-      <p>
-        未满 18 周岁的未成年人在使用本产品及相关服务前，建议在父母或其他监护人的监护与指导下阅读并理解本政策。
-      </p>
-
-      <h2 id="security" class="reveal">十三、安全</h2>
-      <ul>
-        <li>API Key 等敏感信息仅存于浏览器本地隔离存储，不会被我们获取；</li>
-        <li>翻译请求按你的配置直连所选服务商，并默认携带注入防护；</li>
-        <li>扩展页面启用严格内容安全策略，禁止加载远程脚本；译文仅以 <code>textContent</code> 注入，无 XSS 面；</li>
-        <li>请妥善保管你的 API Key，避免在其所属平台之外泄露。需提醒的是，<strong>没有任何传输或存储方式是绝对安全的</strong>，我们仅承诺采取与上述设计一致的合理措施；</li>
-        <li>若发生可能影响你权益的个人信息安全事件，我们将在适用法律要求的范围内，及时通知你及相关监管机构。</li>
-      </ul>
-
-      <h2 id="links" class="reveal">十四、第三方链接</h2>
-      <p>
-        本网站可能包含指向第三方网站、浏览器商店、应用商店或你所选翻译服务商页面的链接。第三方网站与服务的隐私实践不由我们控制，建议你在使用或向其提交信息前查阅其隐私政策与服务条款。
-      </p>
-
-      <h2 id="changes" class="reveal">十五、本政策的变更</h2>
-      <p>
-        我们可能不时更新本政策以反映功能或合规要求的变化。更新后的版本将发布在本网站相应页面，并以本页顶部的「最后更新」日期标识。
-      </p>
-      <p>
-        若更新会对你的权利义务产生重大影响，我们将通过项目 Release Notes、仓库说明或其他合理方式予以提示；重大变更可能在扩展内或网站上以公告形式告知。建议你定期查阅。
-      </p>
-
-      <h2 id="disclaimer" class="reveal">十六、免责声明</h2>
-      <p>
-        好翻以开源形式「按原样（as is）」提供，不提供担保。在适用法律允许的最大范围内，运营方不对因使用或无法使用本扩展而产生的任何直接或间接损失承担责任。你应自行评估所选翻译服务商的合规性与适用性，并确保你的使用行为符合中华人民共和国法律法规（例如雇主持有设备、企业网络或受监管行业下的使用要求）。本政策为一般性说明，<strong>不构成法律意见</strong>。
-      </p>
-
-      <h2 id="contact" class="reveal">十七、联系我们与投诉渠道</h2>
-      <p>
-        本项目由个人开发者维护，暂未设立独立法人实体；基于「不持有数据」的架构，未单独指定「个人信息保护负责人」，但设有隐私相关沟通渠道：
-      </p>
-      <ul>
-        <li><strong>隐私相关问题</strong>：请在 <a href="https://github.com/Lokeily/hao-fan/issues" target="_blank" rel="noopener">GitHub Issues</a> 提交（注明「隐私」），我们会尽快回复；</li>
-        <li><strong>向监管机构投诉</strong>：如你认为我们未履行个人信息保护义务或侵害了你的合法权益，可向<strong>国家互联网信息办公室（网信办）</strong>、<strong>12321 网络不良与垃圾信息举报受理中心</strong>或运营方所在地的相关主管部门投诉、举报；</li>
-        <li><strong>重要提示</strong>：由于我们不在服务器端持有你的个人信息，通常无法代为查询或删除已发送给你所选服务商的数据——请直接向该服务商提出请求。</li>
-      </ul>
-
-      <h2 id="permissions" class="reveal">权限说明</h2>
-      <table class="perm-table reveal">
-        <thead>
-          <tr><th>权限</th><th>用途</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>storage</code></td>
-            <td>保存设置、缓存与本地数据</td>
-          </tr>
-          <tr>
-            <td><code>activeTab</code> / <code>scripting</code></td>
-            <td>在你点击翻译时向当前页面注入翻译脚本</td>
-          </tr>
-          <tr>
-            <td><code>contextMenus</code></td>
-            <td>提供「翻译本页 / 翻译图片 / 翻译选中内容」右键菜单</td>
-          </tr>
-          <tr>
-            <td><code>&lt;all_urls&gt;</code> 主机权限</td>
-            <td>在任意网页注入翻译脚本，并直连你在设置中选择的翻译服务</td>
-          </tr>
-        </tbody>
-      </table>
-      <p>扩展<strong>不会</strong>在未经你操作的情况下发起翻译请求。</p>
-    </main>
     </div>
+  </div>
+</nav>
 
-    <section class="block" style="padding-top:8px;">
-      <div class="container">
-        <div class="center-cta reveal">
-          <a class="btn btn-primary js-download" href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">下载扩展（<span class="js-latest-version">v0.1.23</span>）</a>
-          <a class="btn btn-ghost" href="index.html">返回首页 →</a>
-        </div>
-      </div>
-    </section>
+<header class="page-head">
+  <div class="container">
+    <span class="kicker">Privacy Policy</span>
+    <h1>隐私政策</h1>
+    <p class="sub">本地优先，是我们最重要的设计决策，也是这份政策最短的原因。</p>
+  </div>
+</header>
 
-        <footer>
-      <div class="footer-inner">
-        <div>© 2026 好翻（Open Translator CN）· 基于 <a href="https://github.com/Lokeily/hao-fan/blob/main/LICENSE" target="_blank" rel="noopener">MIT 许可证</a> 开源</div>
-        <div class="footer-links">
-          <a class="footer-github" href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener" aria-label="在 GitHub 上查看好翻">
-            <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
-            GitHub
-          </a>
-          <a href="https://github.com/Lokeily/hao-fan/releases/latest" target="_blank" rel="noopener">下载</a>
-          <a href="privacy.html" class="active">隐私政策</a>
-          <a href="terms.html">服务条款</a>
-        </div>
-      </div>
-    </footer>
-    <button class="to-top" aria-label="回到顶部" title="回到顶部">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-    </button>
-    <script src="assets/js/main.js" defer></script>
-  </body>
+<main class="container doc">
+  <p class="meta-line">生效日期：2026 年 8 月 23 日 ｜ 版本：v0.2.0 ｜ 适用产品：好翻浏览器扩展（open-translator-cn）及本官网</p>
+
+  <section>
+    <h2>一、引言与处理者身份</h2>
+    <p>「好翻」（Haofan，以下简称"本扩展"）是一款依据 MIT 许可证开源的浏览器翻译扩展，由开源社区（以下称"我们"）维护。我们高度重视个人信息保护，按照<b>《中华人民共和国个人信息保护法》《中华人民共和国网络安全法》《中华人民共和国数据安全法》</b>等法律法规的要求，制定本政策。</p>
+    <p>由于本扩展为开源软件且不设中心化运营服务器，<b>我们不作为你的个人信息处理者收集任何个人信息</b>；本政策主要向你说明：扩展在本机处理了哪些数据、哪些数据会在<b>你主动配置并由你授权</b>的情况下发送给你自行选择的第三方服务商，以及你可以如何管理这些数据。</p>
+    <blockquote>💡 一句话总结：<b>你的网页内容不会被发送给"好翻"——因为根本不存在"好翻服务器"。翻译请求从你的浏览器直连你自己选择的服务商。</b></blockquote>
+  </section>
+
+  <section>
+    <h2>二、我们不做什么（负面清单）</h2>
+    <ul>
+      <li><b>不收集浏览记录：</b>你访问了哪些网页、翻译了哪些内容，均不会上报给任何人。</li>
+      <li><b>无遥测与埋点：</b>不采集使用行为统计、设备指纹、崩溃报告，不嵌入任何第三方分析脚本。</li>
+      <li><b>无广告与追踪器：</b>不包含广告 SDK，不做跨站跟踪。</li>
+      <li><b>无账号体系：</b>无需注册登录，不存在云端账户数据。</li>
+      <li><b>不出售数据：</b>不存在可供出售的用户数据。</li>
+    </ul>
+    <p>以上声明可通过公开源码验证：仓库中不存在任何遥测上报代码路径。</p>
+  </section>
+
+  <section>
+    <h2>三、数据的本地存储与处理</h2>
+    <h3>3.1 存储在你浏览器中的数据</h3>
+    <p>以下数据<b>仅保存在你本机浏览器的 storage.local 中</b>，不随浏览器同步功能上传（除非你开启浏览器自身的同步），卸载扩展即被删除：</p>
+    <table class="hl-table">
+      <thead><tr><th>数据</th><th>用途</th><th>保存期限与清除方式</th></tr></thead>
+      <tbody>
+        <tr><td>API Key（按服务商分别保存）</td><td>用于向该服务商发起翻译请求时的身份认证</td><td>直至你删除修改或卸载扩展；设置页可修改</td></tr>
+        <tr><td>翻译缓存</td><td>相同文本免重复请求，节省费用</td><td>30 天自动过期，上限 2000 条 LRU；设置页可一键清空</td></tr>
+        <tr><td>翻译历史</td><td>弹窗「历史」标签页供你查询回填</td><td>上限 200 条；可一键清空</td></tr>
+        <tr><td>偏好设置 / 站点列表 / 术语表</td><td>记住你的个性化配置</td><td>直至修改或卸载；支持导出备份</td></tr>
+        <tr><td>工具栏位置等界面偏好</td><td>恢复你的使用习惯</td><td>同上</td></tr>
+      </tbody>
+    </table>
+    <h3>3.2 在内存中临时处理的数据</h3>
+    <p>翻译过程中，待译文本片段会在本机内存中完成遮罩、组装、渲染等处理，处理结果仅写入上述本地存储，处理完成即释放。</p>
+  </section>
+
+  <section>
+    <h2>四、会离开本机的数据：仅经你主动配置直达所选服务商</h2>
+    <p>当你在设置中填写某服务商的 API Key 并发起翻译时，扩展会将<b>待译文本片段</b>通过 HTTPS 直接发送给<b>你所选择的服务商接口</b>。此过程中：</p>
+    <ul>
+      <li>API Key 仅通过 HTTP <code>Authorization</code> 请求头传输，绝不出现在 URL 中；</li>
+      <li>请求不经过任何"好翻"的中转服务器（不存在这样的服务器）；</li>
+      <li>服务商对你的文本的处理行为，受<b>该服务商自己的隐私政策与服务条款</b>约束，其为独立的个人信息处理者。</li>
+    </ul>
+    <h3>4.1 可选服务商及其隐私政策入口（以你在设置中的选择为准）</h3>
+    <p>DeepSeek、智谱 GLM、腾讯混元、通义千问、Kimi、百度百川、字节豆包、OpenAI、Google Gemini、OpenRouter、DeepL、Microsoft Translator、Ollama（本地运行，数据不出本机）、自定义 OpenAI 兼容端点（由你自己部署和掌控）。各服务商的最新隐私政策请在其官方网站查阅。</p>
+    <blockquote>⚠️ 特别提示：请仔细阅读你所选服务商的隐私政策后再行配置。若你对某些服务商的数据处理方式不满意，可选择其他服务商或本地模型。</blockquote>
+  </section>
+
+  <section>
+    <h2>五、扩展权限用途说明</h2>
+    <table class="hl-table">
+      <thead><tr><th>权限</th><th>用途</th></tr></thead>
+      <tbody>
+        <tr><td>storage</td><td>在第 3.1 节所述的本机数据读写</td></tr>
+        <tr><td>activeTab</td><td>在当前标签页注入译文与交互浮层（仅在触发翻译时）</td></tr>
+        <tr><td>contextMenus</td><td>提供右键菜单"翻译本页 / 翻译选中内容 / 翻译图片"</td></tr>
+        <tr><td>scripting</td><td>对未刷新页面按需注入内容脚本，保证右键指令可达</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>六、关于本官网</h2>
+    <p>本官网（docs 目录静态页面）部署于 GitHub Pages（境外服务器）。访问本官网时，GitHub 会按其自身政策处理必要的网络日志；本官网不嵌入任何统计或追踪脚本。<b>本扩展的使用与是否访问本官网无关。</b></p>
+  </section>
+
+  <section>
+    <h2>七、你的权利</h2>
+    <p>依据《个人信息保护法》第四章，你对本机存储的上述数据享有以下权利，且均可即时行使：</p>
+    <ul>
+      <li><b>查阅与复制：</b>设置页导出备份即为完整副本；翻译历史可在弹窗查看。</li>
+      <li><b>更正与补充：</b>所有字段均可直接编辑。</li>
+      <li><b>删除：</b>清空缓存 / 清空历史 / 删除 Key 均为即时操作；卸载扩展即删除全部本地数据。</li>
+      <li><b>撤回同意：</b>停止使用某服务商（删除其 Key）或卸载扩展，即撤回相应授权。</li>
+    </ul>
+    <p>本扩展不处理不满十四周岁未成年人的个人信息，亦不面向儿童运营。</p>
+  </section>
+
+  <section>
+    <h2>八、政策的更新</h2>
+    <p>若扩展架构发生影响本政策的变化（例如引入新的数据处理方式），我们会先在源码中以提交形式公示，并在发布说明与本页面中显著标注版本与生效日期后生效。历史版本可在 Git 提交记录中追溯。</p>
+  </section>
+
+  <section>
+    <h2>九、联系我们与争议解决</h2>
+    <p>你是本扩展的唯一用户与最终控制者。如对本政策有任何疑问、意见或投诉，可通过 <a href="https://github.com/Lokeily/hao-fan/issues" style="color:var(--accent)">GitHub Issues</a> 联系社区；安全漏洞请依照 <a href="https://github.com/Lokeily/hao-fan/blob/main/SECURITY.md" style="color:var(--accent)">SECURITY.md</a> 的说明私下披露。若发生个人信息相关争议，你有权依据法律规定向有关主管部门投诉举报。</p>
+  </section>
+</main>
+
+<footer>
+  <div class="container foot-grid">
+    <div class="foot-brand">
+      <a class="brand" href="./"><img src="assets/img/icon-128.png" alt="" /><span>好翻 Haofan</span></a>
+      <p>开源、免费、直连自选 AI 的沉浸式双语网页翻译扩展。让每一次外文阅读，都顺畅自然。</p>
+    </div>
+    <div>
+      <h4>产品</h4>
+      <ul>
+        <li><a href="features.html">功能特性</a></li>
+        <li><a href="compare.html">与众不同</a></li>
+        <li><a href="install.html">下载安装</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/releases" target="_blank" rel="noopener">更新日志</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>资源</h4>
+      <ul>
+        <li><a href="https://github.com/Lokeily/hao-fan" target="_blank" rel="noopener">GitHub 仓库</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/issues" target="_blank" rel="noopener">问题反馈</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">参与贡献</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>法律与合规</h4>
+      <ul>
+        <li><a href="privacy.html">隐私政策</a></li>
+        <li><a href="terms.html">服务条款</a></li>
+        <li><a href="https://github.com/Lokeily/hao-fan/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="copyright container">© 2026 好翻 Haofan contributors · 基于 MIT 协议开源 · 由社区驱动维护<br />本网站部署于境外服务器（GitHub Pages）· 本扩展为开源工具，按「现状」提供</div>
+</footer>
+
+<script src="assets/js/site.js"></script>
+</body>
 </html>
