@@ -116,7 +116,7 @@ export function buildConfigForm(
         <div class="ot-switches">
           <label class="ot-check" id="ot-full-auto">
             <input type="checkbox" data-site-ctx="auto" ${siteCtx.autoTranslate ? 'checked' : ''} />
-            <span><strong>自动翻译此站</strong><small>打开 ${siteCtx.host} 的页面时自动开始翻译（手动模式下不生效）</small></span>
+            <span><strong>自动翻译此站</strong><small>打开 ${siteCtx.host} 的页面时开启后本站始终自动翻译，覆盖全局手动模式</small></span>
           </label>
           <label class="ot-check" id="ot-full-pause">
             <input type="checkbox" data-site-ctx="pause" ${siteCtx.paused ? 'checked' : ''} />

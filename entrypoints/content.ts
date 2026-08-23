@@ -1,4 +1,4 @@
-import { defineContentScript } from 'wxt/utils/define-content-script';
+﻿import { defineContentScript } from 'wxt/utils/define-content-script';
 import { browser } from 'wxt/browser';
 import {
   collectTextBlocks,
@@ -108,7 +108,10 @@ export default defineContentScript({
     const sessionTranslations = new SessionTranslationCache();
     let translationConfigRevision = 0;
     let currentTranslationStyle = 'plain';
-    let currentTranslateMode: 'auto' | 'manual' = 'auto';
+    let currentTranslateMode: 'auto' | 'manual' = 'manual';
+    // 站点级「总是自动翻译此站」显式开启时，覆盖全局手动模式——该站表现为完整自动翻译
+    let thisSiteAutoOverride = false;
+    const effectiveAutoMode = () => currentTranslateMode === 'auto' || thisSiteAutoOverride;
   // 当前目标语言（TTS 朗读按它选发音）：配置加载与变化时同步。
   let currentTargetLang = '中文';
     let hoverTranslateEnabled = true;
@@ -146,6 +149,8 @@ export default defineContentScript({
           const autoSites = await autoSitesItem.getValue();
           // null（未配置）= 默认自动翻译此站；配置过则按列表判断
           const autoEnabled = autoSites === null || isSiteDisabled(autoSites, location.href);
+          // 站点级显式开启 → 覆盖全局手动模式
+          thisSiteAutoOverride = Array.isArray(autoSites) && isSiteDisabled(autoSites, location.href);
           if (autoEnabled) {
             await new Promise<void>((resolve) => {
               if (sitePolicyLoaded) {
@@ -234,7 +239,7 @@ export default defineContentScript({
           currentTranslateMode = v.translateMode;
           // 工具栏空闲态文案跟随模式变化；切入手动模式时给一次性操作提示。
           refreshToolbarIdleLabels();
-          if (prevMode !== 'manual' && currentTranslateMode === 'manual' && !busy && !siteDisabled) {
+          if (prevMode !== 'manual' && currentTranslateMode === 'manual' && !thisSiteAutoOverride && !busy && !siteDisabled) {
             showStatus('已切换到手动模式：点击段落或划选文字即可翻译', true, 3500);
           }
         }
@@ -253,6 +258,9 @@ export default defineContentScript({
       });
       safeWatch(autoSitesItem, (sites) => {
         const autoOn = sites === null || isSiteDisabled(sites, location.href);
+        // 站点级显式开启 → 覆盖全局手动模式；工具栏等空闲态文案随之刷新
+        thisSiteAutoOverride = sites !== null && isSiteDisabled(sites, location.href);
+        refreshToolbarIdleLabels();
         settingsPanel?.update({ autoTranslate: autoOn });
         fullSettingsFormApi?.updateSiteState(autoOn, undefined);
       });
@@ -1175,7 +1183,7 @@ export default defineContentScript({
       // 手动模式：不做整页自动翻译，仅由「点击段落 / 划词」触发。
       // 自动初始化路径静默返回（避免每次导航都弹同样的提示）；
       // 用户主动操作（工具栏 / 快捷键 / 弹窗）时给出一次性操作指引。
-      if (currentTranslateMode === 'manual') {
+      if (!effectiveAutoMode()) {
         busy = false;
         if (userInitiated) {
           showStatus('手动模式：点击段落或划选文字即可翻译（可在设置中切换）', true, 3500);
@@ -1302,7 +1310,7 @@ export default defineContentScript({
     function startDynamicTranslation() {
       if (dynamicActive || !document.body) return;
       // 手动模式下不自动翻译动态新增内容，保持「按需翻译」。
-      if (currentTranslateMode === 'manual') return;
+      if (!effectiveAutoMode()) return;
       dynamicActive = true;
 
       // 动态新增内容同样只注册观察，进入视口前不会调用翻译 API。
@@ -2055,9 +2063,11 @@ export default defineContentScript({
           refreshToolbarIdleLabels();
         }
         estimatedTokensSaved += r.savedTokens;
-      } catch {
-        /* 翻译失败静默，不阻断交互；但半截译文必须撤掉 */
+      } catch (error) {
+        // 失败不再完全静默：给出原因便于排查；半截流式译文必须撤掉
         if (streamedPartial) dropTranslationNode(el);
+        const msg = error instanceof Error ? error.message : String(error);
+        if (!/取消|abort/i.test(msg)) showStatus(`翻译失败：${msg}`, true, 4000);
       } finally {
         html.classList.remove(PENDING_CLASS);
       }
@@ -2067,7 +2077,7 @@ export default defineContentScript({
     document.addEventListener(
       'click',
       (e: Event) => {
-        if (currentTranslateMode !== 'manual' || siteDisabled) return;
+        if (effectiveAutoMode() || siteDisabled) return;
         const target = e.target as Element | null;
         if (!target) return;
         if (
@@ -2098,7 +2108,7 @@ export default defineContentScript({
             sendResponse({ ok: false, reason: 'paused' });
             return;
           }
-          if (currentTranslateMode === 'manual') {
+          if (!effectiveAutoMode()) {
             showStatus('手动模式：点击段落或划选文字即可翻译（可在设置中切换）', true);
             sendResponse({ ok: false, reason: 'manual' });
             return;
@@ -2598,8 +2608,8 @@ export default defineContentScript({
       'mouseover',
       (e) => {
         if (!hoverTranslateEnabled) return;
-        // 手动模式不自动悬停翻译，保持「按需翻译」。
-        if (currentTranslateMode === 'manual') return;
+        // 有效手动模式（且站点未显式开启自动）不悬停翻译，保持「按需翻译」。
+        if (!effectiveAutoMode()) return;
         const target = e.target as Element | null;
         if (!target || !document.body.contains(target)) return;
         if (
@@ -2948,16 +2958,19 @@ export default defineContentScript({
       // 挂载后按当前模式初始化空闲态文案；并回读一次配置，消除
       // 「工具栏先于配置读取挂载」时用默认模式渲染标签的竞态。
       refreshToolbarIdleLabels();
-      void configItem
-        .getValue()
-        .then((v) => {
-          if (!v) return;
+      void Promise.all([
+        configItem.getValue().catch(() => null),
+        autoSitesItem.getValue().catch(() => null),
+      ]).then(([v, sites]) => {
+        if (v) {
           if (v.translateMode === 'auto' || v.translateMode === 'manual') {
             currentTranslateMode = v.translateMode;
           }
-          refreshToolbarIdleLabels();
-        })
-        .catch(() => {});
+        }
+        thisSiteAutoOverride =
+          Array.isArray(sites) && isSiteDisabled(sites, location.href);
+        refreshToolbarIdleLabels();
+      });
 
       // 整条工具条可拖动；位移超过阈值视为拖拽，不触发按钮点击。
       const draggable = makeDraggable(bar, bar, (x, y) => {
@@ -3022,14 +3035,14 @@ export default defineContentScript({
     // 手动模式下额外标注交互方式，避免点了「译」只看到一行状态而困惑。
     function toolbarIdleLabel(): string {
       if (translatedCount > 0) return '收起全部译文';
-      return currentTranslateMode === 'manual'
+      return !effectiveAutoMode()
         ? '翻译当前网页（手动模式：点击段落或划选文字即可翻译）'
         : '翻译当前网页';
     }
 
     function toolbarIdleTitle(): string {
       if (translatedCount > 0) return '好翻 · 收起全部译文（再次点击重新翻译）';
-      return currentTranslateMode === 'manual' ? '好翻 · 手动模式（点击段落或划词翻译）' : '好翻 · 翻译本页';
+      return effectiveAutoMode() ? '好翻 · 翻译本页' : '好翻 · 手动模式（点击段落或划词翻译）';
     }
 
     function refreshToolbarIdleLabels() {

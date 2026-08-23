@@ -234,6 +234,32 @@ test('manual mode is the v0.2.0 default: page loads clean until user clicks', as
   await expect(page.locator('.ot-translation').first()).toBeVisible({ timeout: 20000 });
 });
 
+test('per-site auto-translate overrides global manual mode', async ({ page }) => {
+  // 全局手动 + 站点级显式自动 → 该站加载后仍应自动整页翻译
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'mock-storage:config',
+      JSON.stringify({
+        provider: 'deepseek',
+        apiKeys: { deepseek: 'test-key-for-browser-regression' },
+        model: 'deepseek-chat',
+        sourceLang: '自动检测',
+        targetLang: '中文',
+        cacheEnabled: true,
+        streaming: true,
+        qualityCheck: true,
+        translateMode: 'manual',
+      }),
+    );
+    localStorage.setItem(
+      'mock-storage:autoSites',
+      JSON.stringify(['127.0.0.1:4173']),
+    );
+  });
+  await page.goto('/tests/browser/dom-regression.html');
+  await expect(page.locator('.ot-translation').first()).toBeVisible({ timeout: 20000 });
+});
+
 test('menu pages load the configured brand logo asset', async ({ page }) => {
   await page.goto('/tests/browser/popup-regression.html');
   const logo = page.locator('.ot-brand-mark img');

@@ -47,7 +47,11 @@ export function sanitizeImportedConfig(raw: unknown): AppConfig {
     }
   }
   const result = out as unknown as AppConfig;
-  if (result.translateMode !== 'auto') result.translateMode = 'manual';
+  // 枚举收敛：非法值回落到默认「手动」；themeMode 同理回落「跟随系统」
+  if (result.translateMode !== 'manual' && result.translateMode !== 'auto') {
+    result.translateMode = 'manual';
+  }
+  if (result.themeMode !== 'light' && result.themeMode !== 'dark') result.themeMode = 'auto';
   return normalizeConfig(result);
 }
 
