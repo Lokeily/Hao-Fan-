@@ -1,4 +1,4 @@
-// 设置备份（导出 / 导入）的纯函数测试：解析校验与字段净化。
+﻿// 设置备份（导出 / 导入）的纯函数测试：解析校验与字段净化。
 // 导入文件可能来自任意来源，这里锁定「脏数据不得进入 storage」的行为。
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -66,7 +66,7 @@ test('sanitizeImportedConfig：translateMode 收敛到枚举、apiKeys 过滤非
     translateMode: 'yolo',
     apiKeys: { openai: 'sk-ok', bad: 123 },
   });
-  assert.equal(out.translateMode, 'auto'); // 非法值收敛为 auto
+  assert.equal(out.translateMode, 'manual'); // 非法值收敛为默认手动模式
   assert.deepEqual(out.apiKeys, { openai: 'sk-ok' });
 });
 

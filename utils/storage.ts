@@ -37,3 +37,21 @@ export const settingsPanelPosItem = storage.defineItem<{ x: number; y: number } 
   'local:settingsPanelPos',
   { defaultValue: null },
 );
+
+// ===== 一次性迁移：v0.2.0 起翻译模式默认改为「手动」=====
+// 老版本保存的全量快照里带着 translateMode:'auto'，仅修改 DEFAULT_CONFIG
+// 对已有用户不生效；此迁移保证升级后同样切换为手动（可在设置中改回自动）。
+const manualDefaultAppliedItem = storage.defineItem<boolean>('local:v2ManualDefaultApplied', {
+  defaultValue: false,
+});
+
+export async function applyManualDefaultMigration(): Promise<void> {
+  try {
+    if (await manualDefaultAppliedItem.getValue()) return;
+    const cfg = await configItem.getValue();
+    await configItem.setValue({ ...cfg, translateMode: 'manual' });
+    await manualDefaultAppliedItem.setValue(true);
+  } catch {
+    /* 存储不可用时跳过迁移，下次启动重试 */
+  }
+}

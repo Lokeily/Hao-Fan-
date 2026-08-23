@@ -47,7 +47,7 @@ export function sanitizeImportedConfig(raw: unknown): AppConfig {
     }
   }
   const result = out as unknown as AppConfig;
-  if (result.translateMode !== 'manual') result.translateMode = 'auto';
+  if (result.translateMode !== 'auto') result.translateMode = 'manual';
   return normalizeConfig(result);
 }
 

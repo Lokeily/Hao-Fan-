@@ -204,6 +204,36 @@ test('popup tabs support keyboard navigation and show a live character count', a
   await expect(page.locator('#ot-input-count')).toHaveText('5 / 20,000');
 });
 
+test('manual mode is the v0.2.0 default: page loads clean until user clicks', async ({ page }) => {
+  // 预置「手动模式 + 已配 Key」：验证载入零自动翻译，点击段落才翻译
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'mock-storage:config',
+      JSON.stringify({
+        provider: 'deepseek',
+        apiKeys: { deepseek: 'test-key-for-browser-regression' },
+        model: 'deepseek-chat',
+        sourceLang: '自动检测',
+        targetLang: '中文',
+        cacheEnabled: true,
+        streaming: true,
+        qualityCheck: true,
+        translateMode: 'manual',
+      }),
+    );
+  });
+  await page.goto('/tests/browser/dom-regression.html');
+  const toolbar = page.locator('#ot-toolbar');
+  await expect(toolbar).toBeVisible();
+  await expect(toolbar).toHaveAttribute('aria-label', /手动模式/);
+  await page.waitForTimeout(1200);
+  expect(await page.locator('.ot-translation').count()).toBe(0);
+
+  // 用户点击段落 → 该段出现译文
+  await page.getByRole('heading', { name: /Setup authenticator app/i }).click();
+  await expect(page.locator('.ot-translation').first()).toBeVisible({ timeout: 20000 });
+});
+
 test('menu pages load the configured brand logo asset', async ({ page }) => {
   await page.goto('/tests/browser/popup-regression.html');
   const logo = page.locator('.ot-brand-mark img');

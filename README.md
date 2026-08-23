@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 <img src="public/icon-128.png" alt="好翻" width="96" height="96">
 
@@ -78,7 +78,7 @@
 
 1. 点击工具栏「好翻」图标 → 打开「设置」
 2. 选择服务商，填入 API Key，设置目标语言，点「测试连接」确认可用
-3. 回到任意网页，点击右下角蓝色「译」按钮开始翻译；翻译中再次点击可取消
+3. 回到任意英文网页 —— 默认为**手动模式**：点击段落或划选文字即可翻译；也可在设置中切换为「整页自动」。
 
 **想先体验？** 设置中选择「Google 翻译」即可免 Key 使用。
 **追求最省 Token？** 把「翻译模式」切到「手动点击 / 划词」——整页不自动翻译，点哪段译哪段。
@@ -117,7 +117,7 @@ npm run build:firefox # Firefox MV2 → .output/firefox-mv2
 | --- | --- | --- |
 | 翻译引擎 / 模型 / Base URL | 服务商、模型与自建端点 | deepseek / deepseek-chat |
 | 源语言 / 目标语言 | 支持自动检测 | 自动检测 → 中文 |
-| 翻译模式 | `auto` 整页自动 / `manual` 手动点击·划词 | auto |
+| 翻译模式 | `manual` 手动点击·划词 / `auto` 整页自动 | manual |
 | 翻译风格 | 自然流畅 / 正式书面 / 轻松口语 / 简洁精炼 | 自然流畅 |
 | 译文显示样式 | plain / dashed / underline / highlight | plain |
 | 界面主题 | 跟随系统 / 强制浅色 / 强制深色 | 跟随系统 |
@@ -161,7 +161,7 @@ npm run test:all       # 一键执行全部门禁
 | --- | --- |
 | `check:version` | 版本一致性（package / lock / README / changelog） |
 | `lint` + `typecheck` | ESLint 0 警告 · TypeScript 严格模式 0 错误 |
-| `test` | 63 项单元测试（协议 / 缓存 / 术语 / 流式 / 恢复 / 注入防护 / 备份 / 历史） |
+| `test` | 66 项单元测试（协议 / 缓存 / 术语 / 流式 / 恢复 / 注入防护 / 备份 / 历史） |
 | `build` × 2 | Chrome MV3 与 Firefox MV2 双平台构建 |
 | `test:browser` | 33 项 Playwright 浏览器回归（布局 / 竞态 / 同步 / 性能基准 2001 段） |
 

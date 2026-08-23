@@ -13,7 +13,14 @@ import {
 import { translateImage, type ImageResult } from '../utils/vision.ts';
 import { ensureCacheLoaded } from '../utils/cache.ts';
 import { fetchWithTimeout } from '../utils/requester.ts';
-import { MAX_TEXT_CHARS, asRecord, readBatch, readJobId, readSingle } from '../utils/messages.ts';
+import {
+  MAX_TEXT_CHARS,
+  asRecord,
+  readBatch,
+  readJobId,
+  readSingle,
+} from '../utils/messages.ts';
+import { applyManualDefaultMigration } from '../utils/storage.ts';
 import { accumulateUsage, EMPTY_USAGE_TOTALS, type TranslationStats } from '../utils/usage.ts';
 import { randomId } from '../utils/id.ts';
 import { isSiteDisabled } from '../utils/site-policy.ts';
@@ -311,6 +318,8 @@ async function doTranslateImage(srcUrl?: string, dataUrl?: string): Promise<Imag
 }
 
 export default defineBackground(() => {
+  // v0.2.0 一次性迁移：翻译模式默认改为「手动」
+  void applyManualDefaultMigration();
   setupStreamingPort();
   browser.runtime.onMessage.addListener((rawMessage: unknown, _sender, sendResponse) => {
     const message = asRecord(rawMessage);

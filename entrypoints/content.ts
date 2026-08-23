@@ -20,6 +20,7 @@ import {
   settingsPanelPosItem,
   setupNoticeShownItem,
 } from '../utils/storage.ts';
+import { applyManualDefaultMigration } from '../utils/storage.ts';
 import {
   createTranslationNode,
   createNoticeHost,
@@ -62,6 +63,8 @@ export default defineContentScript({
   matches: ['<all_urls>'],
   runAt: 'document_idle',
   main() {
+    // v0.2.0 一次性迁移：翻译模式默认改为「手动」（SW 休眠时由内容脚本兜底执行）
+    void applyManualDefaultMigration();
     const runtimeCandidate = (browser as any)?.runtime as typeof browser.runtime | undefined;
     // 扩展刚被更新/重载时，旧页面的内容脚本可能仍存在，但运行时桥接已经失效。
     // 此时不继续挂载 UI，等待用户刷新页面后由新扩展上下文重新注入。
@@ -635,30 +638,74 @@ export default defineContentScript({
         el.insertBefore(node, nestedList || null);
         return;
       }
-      // 普通流中紧邻原文插入，多个段落即使共用 overflow:hidden 卡片也不会被搬出或倒序。
-      // Flex/Grid 的直接子项不能新增兄弟项，否则会改变轨道布局，此时嵌入原语义块末尾。
-      const parentDisplay = el.parentElement ? getComputedStyle(el.parentElement).display : '';
+      // 普通流中紧邻原文插入；Flex/Grid 直接子项、float、CSS 多列、绝对定位锚点
+      // 等会视觉错位的场景首选嵌入原文块内部。每种策略渲染后做几何校验
+      // （应位于锚点正下方、未跨列、未被裁剪），不达标自动降级到下一策略。
+      applyWithFallback(el, node, computePlacementStrategies(el));
+    }
+
+    type PlacementStrategy = 'inside' | 'afterend';
+
+    function computePlacementStrategies(el: Element): PlacementStrategy[] {
+      const cs = getComputedStyle(el);
+      const parentCs = el.parentElement ? getComputedStyle(el.parentElement) : null;
       const parentCreatesLayout =
-        parentDisplay === 'flex' ||
-        parentDisplay === 'inline-flex' ||
-        parentDisplay === 'grid' ||
-        parentDisplay === 'inline-grid';
-      // float 元素与 CSS 多列（column-count/width）布局：afterend 插入的兄弟节点
-      // 会被 float 挤出容器，或作为新列项流入下一列——译文与原文视觉错位。
-      // 一律嵌入原文块内部，译文紧随原文且不改变页面布局。
-      const ownFloat = getComputedStyle(el).float;
+        !!parentCs &&
+        ['flex', 'inline-flex', 'grid', 'inline-grid', 'table', 'table-row'].includes(
+          parentCs.display,
+        );
+      const ownFloat = cs.float !== 'none';
+      const ownAbs = cs.position === 'absolute' || cs.position === 'fixed';
+      // 多列布局祖先加深到 6 层：嵌套卡片内的多列文本此前漏判导致译文流入下一列
       let columnAncestor = false;
       let depth = 0;
-      for (let p = el.parentElement; p && p !== document.documentElement && depth < 3; p = p.parentElement) {
-        depth++;
-        const cs = getComputedStyle(p);
-        if (cs.columnCount !== 'auto' || cs.columnWidth !== 'auto') {
+      for (
+        let p = el.parentElement;
+        p && p !== document.documentElement && depth < 6;
+        p = p.parentElement, depth++
+      ) {
+        const c2 = getComputedStyle(p);
+        if (c2.columnCount !== 'auto' || c2.columnWidth !== 'auto') {
           columnAncestor = true;
           break;
         }
       }
-      if (parentCreatesLayout || ownFloat !== 'none' || columnAncestor) el.appendChild(node);
+      if (parentCreatesLayout || ownFloat || ownAbs || columnAncestor) {
+        return ['inside', 'afterend'];
+      }
+      return ['afterend', 'inside'];
+    }
+
+    // 几何校验：译文应大致位于锚点正下方且未跨列、未被 overflow 裁剪成不可见。
+    function isPlacementOk(anchor: Element, node: HTMLElement): boolean {
+      if (!node.isConnected) return false;
+      const a = anchor.getBoundingClientRect();
+      const n = node.getBoundingClientRect();
+      if (n.width === 0 && n.height === 0) return false; // 被裁剪或渲染失败
+      if (n.top < a.top - 12) return false; // 跑到了锚点上方
+      const drifted =
+        n.right < a.left - 8 || n.left > a.right + Math.max(a.width * 0.75, 60);
+      return !drifted; // 落进相邻列视为错位
+    }
+
+    function applyWithFallback(
+      el: Element,
+      node: HTMLElement,
+      strategies: PlacementStrategy[],
+      index = 0,
+    ): void {
+      const strategy = strategies[index];
+      if (!strategy) return;
+      if (strategy === 'inside') el.appendChild(node);
       else el.insertAdjacentElement('afterend', node);
+      // 渲染后测量真实几何位置；错位则移除并尝试下一策略（最多两轮降级）。
+      requestAnimationFrame(() => {
+        if (!node.isConnected) return;
+        if (index + 1 < strategies.length && !isPlacementOk(el, node)) {
+          node.remove();
+          applyWithFallback(el, node, strategies, index + 1);
+        }
+      });
     }
 
     // 流式中途失败时撤掉半截译文：宁可什么都不显示，也不留一句没译完的话在页面上。
@@ -2894,6 +2941,19 @@ export default defineContentScript({
       } catch {
         (document.body || document.documentElement).appendChild(bar);
       }
+      // 挂载后按当前模式初始化空闲态文案；并回读一次配置，消除
+      // 「工具栏先于配置读取挂载」时用默认模式渲染标签的竞态。
+      refreshToolbarIdleLabels();
+      void configItem
+        .getValue()
+        .then((v) => {
+          if (!v) return;
+          if (v.translateMode === 'auto' || v.translateMode === 'manual') {
+            currentTranslateMode = v.translateMode;
+          }
+          refreshToolbarIdleLabels();
+        })
+        .catch(() => {});
 
       // 整条工具条可拖动；位移超过阈值视为拖拽，不触发按钮点击。
       const draggable = makeDraggable(bar, bar, (x, y) => {

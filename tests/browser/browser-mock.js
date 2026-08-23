@@ -29,6 +29,8 @@
     disabledSites: disabledFromQuery ? [location.host] : [],
     // 测试环境默认不自动翻译（生产默认全开）；auto-translate 用例自行设置
     autoSites: [],
+    // v0.2.0 手动默认迁移已完成：防止迁移覆写下方 config 预置的 translateMode
+    v2ManualDefaultApplied: true,
     // 测试环境代表「已配置好 API Key 的普通用户」：后台 mock 始终能返回译文，
     // 而 v0.1.23 起无 Key 时整页翻译会被引导卡拦下（不发请求）。预置 Key 让
     // 依赖整页翻译的回归用例继续按原语义运行；专门测引导的用例会显式清空 config。

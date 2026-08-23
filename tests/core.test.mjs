@@ -185,7 +185,9 @@ test('only skips target-language text when local detection is confident', () => 
   assert.equal(localSkipReason('Hello world', 'English'), 'targetLanguage');
   // 检测到的是其他语言 → 不跳过，送去翻译。
   assert.equal(localSkipReason('これは日本語です', '中文'), null);
-  assert.equal(localSkipReason('設定', '中文'), null);
+  // v0.2 起：无假名/谚文时只要含汉字即判为中文（杜绝「設定」等短词中译中重复请求）。
+  // 代价是极少数纯汉字日语短词会被当作中文跳过——带假名的完整日文句子不受影响。
+  assert.equal(localSkipReason('設定', '中文'), 'targetLanguage');
   // 显式 source=target 时同样跳过（向后兼容旧签名）。
   assert.equal(localSkipReason('Hello world', 'English', 'English'), 'targetLanguage');
   assert.equal(localSkipReason('123 / 456', '中文'), 'nonLinguistic');

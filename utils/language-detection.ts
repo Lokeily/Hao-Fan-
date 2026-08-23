@@ -57,8 +57,9 @@ function countMatches(text: string, pattern: RegExp): number {
 /**
  * 检测文本的主要语种（粗粒度）。
  * - 含假名 → 日；含谚文 → 韩；
- * - 汉字 ≥3 且占比 ≥0.5 → 中（保守：2 字以内不当作中文，避免误判日文 UI 短词）；
- * - 其余按占比 ≥0.5 归到对应非拉丁脚本；否则拉丁；都没有 → other。
+ * - 拉丁字母占比 ≥0.55 → 拉丁（品牌混排句、代码片段优先按拉丁处理）；
+ * - 其余只要出现汉字（假名/谚文已先行排除）即判为中文：
+ *   覆盖「设置」「确定」等短 UI 词，杜绝短中文被误送模型造成中译中。
  */
 export function detectLang(text: string): LangKey {
   const trimmed = text.trim();
@@ -81,12 +82,20 @@ export function detectLang(text: string): LangKey {
   if (hangul > 0) return 'ko';
 
   const ratio = (n: number) => n / letters;
-  if (han >= 3 && ratio(han) >= 0.5) return 'zh';
+
+  // 无歧义的独立文字系统
   if (ratio(cyrillic) >= 0.5) return 'cyrillic';
   if (ratio(arabic) >= 0.5) return 'arabic';
   if (ratio(devanagari) >= 0.5) return 'devanagari';
   if (ratio(thai) >= 0.5) return 'thai';
-  if (latin > 0 && ratio(latin) >= 0.5) return 'latin';
+
+  // 拉丁明显占优（≥0.55）才判拉丁：混有少量英文品牌的中文句不会被误跳过
+  if (latin > 0 && ratio(latin) >= 0.55) return 'latin';
+
+  // 有汉字且拉丁不占优 → 中文（此前要求 han≥3 且占比≥0.5，
+  // 导致「设置」等两字词被判为 other 送进模型反复翻译）
+  if (han > 0) return 'zh';
+
   return 'other';
 }
 

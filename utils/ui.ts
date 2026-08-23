@@ -422,7 +422,7 @@ export function buildConfigForm(
     setIfDiff('sourceLang', sourceSel, cfg.sourceLang);
     setIfDiff('targetLang', targetSel, cfg.targetLang);
     setIfDiff('tone', toneSel, cfg.tone || '自然流畅');
-    setIfDiff('translateMode', translateModeSel, cfg.translateMode || 'auto');
+    setIfDiff('translateMode', translateModeSel, cfg.translateMode || 'manual');
     setIfDiff('systemPrompt', promptInput, cfg.systemPrompt);
     setIfDiff('cacheEnabled', cacheChk, cfg.cacheEnabled);
     setIfDiff('glossaryEnabled', glossaryChk, cfg.glossaryEnabled !== false);

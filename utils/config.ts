@@ -22,7 +22,7 @@ export interface AppConfig {
   inputTranslate: boolean; // 网页输入框翻译（聚焦时提供翻译按钮）
   translationStyle: string; // 译文显示样式：plain / dashed / underline / highlight
   themeMode: 'auto' | 'light' | 'dark'; // 界面主题：跟随系统 / 强制浅色 / 强制深色
-  translateMode: 'auto' | 'manual'; // 翻译模式：auto=整页自动；manual=仅划词/点击翻译
+  translateMode: 'auto' | 'manual'; // 翻译模式：manual=仅划词/点击翻译（默认）；auto=整页自动
   fallbackProviders: string[]; // 多引擎故障转移：主引擎 429/5xx 时按顺序切换
   strongProvider: string; // 长文强模型路由：超过阈值改用此服务商
   strongModel: string; // 长文强模型路由：目标模型
@@ -60,7 +60,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   inputTranslate: true,
   translationStyle: 'plain',
   themeMode: 'auto',
-  translateMode: 'auto',
+  translateMode: 'manual',
   fallbackProviders: [],
   strongProvider: '',
   strongModel: '',
