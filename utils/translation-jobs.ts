@@ -44,7 +44,7 @@ export class TranslationJobRegistry {
         this.cancelled.delete(oldest);
       }
     }
-    this.active.get(jobId)?.forEach((controller) => controller.abort());
+    this.active.get(jobId)?.forEach((controller) => controller.abort(cancellationError()));
     this.active.delete(jobId);
   }
 }

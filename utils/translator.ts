@@ -151,12 +151,14 @@ function buildCandidates(cfg: AppConfig): AppConfig[] {
       const provider = getProvider(fb);
       if (!provider) continue;
       if (!getProviderApiKey(cfg, fb)) continue; // 无 Key 的备用引擎直接跳过
+      const resolvedBaseUrl = fb === 'custom' ? cfg.baseUrl : provider.baseUrl;
+      if (!resolvedBaseUrl) continue; // 端点为空的候选不可用
       out.push({
         ...cfg,
         provider: fb,
         // 备用引擎为「自定义」时必须沿用用户配置的端点与模型：
         // custom 的预设 baseUrl 是空串，直接覆盖会让备用请求打到空地址必然失败。
-        baseUrl: fb === 'custom' ? cfg.baseUrl : provider.baseUrl,
+        baseUrl: resolvedBaseUrl,
         model: fb === 'custom' ? cfg.model || provider.defaultModel : provider.defaultModel,
         fallbackProviders: [], // 防止候选内部再嵌套一层完整故障转移（平方级放大请求）
       });
@@ -450,7 +452,34 @@ export async function translateOneDetailed(
     cfg.glossaryEnabled !== false
       ? buildGlossaryBlock(relevantTerms([t], cfg.targetLang, glossary, cfg.glossaryTermLimit ?? 12))
       : '';
-  const core = await coreTranslate(effectiveCfg, t, signal, { context: liveContext, glossaryBlock: block });
+  let core: { text: string; stats: TranslationStats; issue?: string[] | null };
+  try {
+    core = await coreTranslate(effectiveCfg, t, signal, { context: liveContext, glossaryBlock: block });
+  } catch (error) {
+    // 单段长文被 max_tokens 截断：按段落拆分后逐段翻译，避免用户看到内部重试提示
+    if (error instanceof TruncatedOutputError && !signal?.aborted) {
+      const parts = splitLongText(t);
+      if (parts.length > 1) {
+        let merged = '';
+        const partStats = createStats(parts.length);
+        for (const part of parts) {
+          signal?.throwIfAborted();
+          const r = await coreTranslate(effectiveCfg, part, signal, { context: liveContext });
+          merged += r.text;
+          partStats.requests += r.stats.requests;
+          partStats.promptTokens += r.stats.promptTokens;
+          partStats.completionTokens += r.stats.completionTokens;
+          partStats.qualityIssues += r.stats.qualityIssues;
+        }
+        stats.requests += partStats.requests;
+        stats.promptTokens += partStats.promptTokens;
+        stats.completionTokens += partStats.completionTokens;
+        stats.qualityIssues += partStats.qualityIssues;
+        return { translation: merged, stats, issue: ['模型输出被截断，已分段翻译'] };
+      }
+    }
+    throw error;
+  }
   stats.requests += core.stats.requests;
   stats.promptTokens += core.stats.promptTokens;
   stats.completionTokens += core.stats.completionTokens;
@@ -627,6 +656,9 @@ export async function translateOneStream(
       ? buildGlossaryBlock(relevantTerms([t], cfg.targetLang, glossary, cfg.glossaryTermLimit ?? 12))
       : '';
   const candidates = buildCandidates(cfg);
+  // 流式路径同样上报发送量统计（此前恒为 0 导致长期低估用量）
+  stats.sentSegments = 1;
+  stats.sentCharacters = t.length;
   const meta: StreamMeta = {};
   let full = '';
   let lastErr: unknown;
