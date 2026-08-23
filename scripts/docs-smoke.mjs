@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url';
 
 const base = process.argv[2] ? process.argv[2].replace(/\\/g, '/') : 'docs';
 const pages = [
-  { file: 'index.html', must: ['.nav', '.hero h1', '.win .tgt', '.stat', '#highlights .card', '.compare tbody tr', '.pipe .step', '.chip', '#download .card', 'details.q'] },
+  { file: 'index.html', must: ['.nav', '.hero h1', '.win .tgt', '.stat', '#highlights .card', '.compare tbody tr', '.pipe .step', '.chip', '#download a.dl-card', '#download .dl-mark', 'details.q'] },
   { file: 'features.html', must: ['.page-head h1', '.feat-block', '.feat-group-title', '.compare tbody tr'] },
   { file: 'compare.html', must: ['.page-head h1', '.arch-col.good', '.arch-col.bad', '.compare tbody tr', '.feat-block'] },
   { file: 'install.html', must: ['.page-head h1', '.timeline .tl-item', '.plat-switch', '.trouble details.q'] },

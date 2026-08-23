@@ -267,8 +267,9 @@ footer li a:hover{color:var(--accent)}
 .reveal-child.in{opacity:1;transform:none}
 
 /* 卡片等高：网格内卡片纵向 flex，内容顶部对齐、按钮可沉底 */
-.grid>.card,.dl-grid>.card{display:flex;flex-direction:column}
-.grid>.card p:last-child,.dl-grid>.card p:last-child{margin-top:auto}
+/* 卡片等高：网格内卡片纵向 flex */
+.grid>.card{display:flex;flex-direction:column}
+.grid>.card p:last-child{margin-top:auto}
 
 @keyframes demoIn{0%{opacity:0;transform:translateY(10px)}8%,86%{opacity:1;transform:none}94%,100%{opacity:0;transform:translateY(-6px)}}
 .demo-loop .d{opacity:0;animation:demoIn 9s ease-in-out infinite}
@@ -286,3 +287,39 @@ footer li a:hover{color:var(--accent)}
 }
 
 @media(max-width:640px){section{padding:56px 0}.hero{padding:64px 0 26px}.feat-block{grid-template-columns:1fr}}
+
+/* ===== 下载卡（紧凑横排 · 品牌徽标版） ===== */
+.dl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;max-width:920px;margin:0 auto}
+a.dl-card,a.dl-card:visited{position:relative;display:flex;align-items:center;gap:14px;padding:17px 18px;
+  background:var(--surface);border:1px solid var(--border);border-radius:15px;color:var(--text);transition:.18s}
+a.dl-card:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:var(--shadow-md)}
+a.dl-card:hover .dl-go{opacity:1;transform:translateX(3px)}
+.dl-mark{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;flex:none;
+  box-shadow:inset 0 0 0 1px rgba(16,20,24,.06),0 3px 10px rgba(16,20,24,.12);position:relative}
+.dl-txt{min-width:0}
+.dl-name{font-weight:750;font-size:15.5px;line-height:1.25}
+.dl-meta{font-size:12.3px;color:var(--muted)}
+.dl-go{margin-left:auto;color:var(--accent);opacity:.5;transition:.18s;flex:none}
+.dl-mark.chrome{background:conic-gradient(from -30deg,#ea4335 0 120deg,#fbbc05 120deg 240deg,#34a853 240deg 360deg)}
+.dl-mark.chrome::after{content:"";width:21px;height:21px;border-radius:50%;background:#4285f4;border:3px solid #fff}
+.dl-mark.edge{background:linear-gradient(135deg,#0c59a4 0%,#1ba1e2 55%,#35d2c3 100%)}
+.dl-mark.edge::after{content:"e";color:#fff;font-size:23px;font-weight:800;line-height:1;
+  font-family:Georgia,"Times New Roman",serif;font-style:italic;transform:translateY(-1px)}
+.dl-mark.firefox{background:radial-gradient(circle at 32% 28%,#ffe066 0%,#ff9500 42%,#f43b1e 82%)}
+.dl-mark.firefox::before{content:"";position:absolute;width:12px;height:8px;border-radius:50%;
+  background:rgba(255,255,255,.75);top:11px;left:12px;transform:rotate(-28deg)}
+.mini{width:19px;height:19px;border-radius:6px;display:inline-grid;place-items:center;vertical-align:-4px;margin-right:4px}
+.mini.chrome::after{width:9px;height:9px;border-width:1.5px}
+.mini.edge::after{font-size:12px}
+
+/* ===== 页面切换动画（渐进增强） ===== */
+@view-transition{navigation:auto}
+@keyframes hfFadeOut{to{opacity:0}}
+@keyframes hfFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+::view-transition-old(root){animation:hfFadeOut .16s ease both}
+::view-transition-new(root){animation:hfFadeIn .26s ease both}
+@keyframes hfPageIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+body{animation:hfPageIn .38s ease both}
+@media (prefers-reduced-motion:reduce){
+  ::view-transition-group(*),::view-transition-old(root),::view-transition-new(root){animation:none !important}
+}
