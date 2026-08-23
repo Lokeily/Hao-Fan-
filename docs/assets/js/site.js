@@ -29,6 +29,31 @@
   );
   document.querySelectorAll('.reveal').forEach((el) => io.observe(el));
 
+  // ===== 网格子项交错入场：容器标 data-stagger，直接子项依次点亮（上限 600ms） =====
+  document.querySelectorAll('[data-stagger]').forEach((group) => {
+    const kids = group.querySelectorAll(':scope > *');
+    if (!kids.length) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    kids.forEach((c, i) => {
+      c.classList.add('reveal-child');
+      c.style.setProperty('--d', Math.min(i * 65, 600) + 'ms');
+    });
+    if (reduced) {
+      kids.forEach((c) => c.classList.add('in'));
+      return;
+    }
+    const gio = new IntersectionObserver(
+      (es) =>
+        es.forEach((e) => {
+          if (!e.isIntersecting) return;
+          e.target.querySelectorAll(':scope > .reveal-child').forEach((c) => c.classList.add('in'));
+          gio.unobserve(e.target);
+        }),
+      { threshold: 0.12 }
+    );
+    gio.observe(group);
+  });
+
   // ===== FAQ 手风琴互斥 =====
   document.querySelectorAll('details.q').forEach((d) => {
     d.addEventListener('toggle', () => {

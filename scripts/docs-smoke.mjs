@@ -13,6 +13,8 @@ const pages = [
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let failures = 0;
+const navSnaps = new Map();
+const footSnaps = new Map();
 
 for (const p of pages) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -48,13 +50,46 @@ for (const p of pages) {
   } else {
     console.log(`✅ ${p.file}`);
   }
+
+  // 一致性快照：导航（去掉 active 态）与页脚必须六页完全一致
+  const snap = await page.evaluate(() => ({
+    nav: document.querySelector('#navLinks')
+      ? [...document.querySelectorAll('#navLinks a.op')].map((a) =>
+          a.className.replace(' active', '').trim() + '|' + a.getAttribute('href') + '|' + a.textContent.trim()
+        ).join('\n')
+      : 'NO_NAV',
+    footer: document.querySelector('footer')
+      ? document.querySelector('footer').innerHTML.replace(/\s+/g, ' ').trim()
+      : 'NO_FOOTER',
+    faqInNav: [...document.querySelectorAll('#navLinks a')].some((a) => /常见问题/.test(a.textContent)),
+    opCount: document.querySelectorAll('#navLinks a.op').length,
+  }));
+  navSnaps.set(p.file, snap.nav);
+  footSnaps.set(p.file, snap.footer);
+  if (snap.faqInNav) { console.log(`❌ ${p.file} -> 导航不应包含「常见问题」`); failures++; }
+  if (snap.opCount !== 4) { console.log(`❌ ${p.file} -> 导航独立页面项应为 4，实际 ${snap.opCount}`); failures++; }
   await page.close();
 }
 
-// 首页专项：计数动画与 FAQ
+// 跨页一致性判定
+{
+  const uniqNav = new Set(navSnaps.values());
+  const uniqFoot = new Set(footSnaps.values());
+  if (uniqNav.size !== 1) { console.log(`❌ 六页导航不一致（${uniqNav.size} 种）`); failures++; }
+  else console.log('✅ 六页导航完全一致');
+  if (uniqFoot.size !== 1) { console.log(`❌ 六页页脚不一致（${uniqFoot.size} 种）`); failures++; }
+  else console.log('✅ 六页页脚完全一致');
+}
+
+// 首页专项：计数动画与交错入场
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   await page.goto(pathToFileURL(`${base}/index.html`).href, { waitUntil: 'load' });
+  const staggered = await page.evaluate(
+    () => document.querySelectorAll('#highlights .grid > .reveal-child').length
+  );
+  if (staggered < 4) { console.log(`❌ 首页交错入场未生效（${staggered} 个子项）`); failures++; }
+  else console.log('✅ 首页网格交错入场');
   await page.locator('.stats').scrollIntoViewIfNeeded();
   await page.waitForTimeout(1500);
   const statText = await page.locator('.stat b').first().textContent();
