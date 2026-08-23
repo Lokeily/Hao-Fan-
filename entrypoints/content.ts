@@ -38,6 +38,7 @@ import { SessionTranslationCache } from '../utils/session-translation-cache.ts';
 import { addHistoryEntry } from '../utils/history-store.ts';
 import { randomId } from '../utils/id.ts';
 import { isSiteDisabled, withSiteDisabled } from '../utils/site-policy.ts';
+import { UI_SURFACE_SELECTOR } from '../utils/dom.ts';
 import { normalizeConfig, getProviderApiKey, type AppConfig } from '../utils/config.ts';
 import { buildConfigForm } from '../utils/ui.ts';
 // 设置页样式直接打包进内容脚本（?raw），完整设置面板无需 fetch 扩展资源。
@@ -543,13 +544,19 @@ export default defineContentScript({
     }
 
     // 强制展示（用户主动点翻译）时忽略「只提示一次」，否则点了没反应更困惑。
+    let lastGuideRenderAt = 0;
     function showSetupGuide(force = false) {
+      // 根治「点一下弹一次」：引导已在屏时绝不重绘（即便 force）；
+      // 非强制路径再加 1.2s 时间节流，防止关闭后瞬时连触发。
+      if (noticeHost?.isConnected) return;
+      if (!force && Date.now() - lastGuideRenderAt < 1200) return;
       const open = () => {
         closeNotice();
         openFullSettingsPanel();
       };
       const render = () => {
         closeNotice();
+        lastGuideRenderAt = Date.now();
         noticeHost = createNoticeHost(
           '还差一步就能开始翻译',
           '好翻直接调用你自己的大模型账号，不经过任何中转服务器。填入 API Key 后即可翻译本页；Key 只保存在本机浏览器里。',
@@ -1706,7 +1713,7 @@ export default defineContentScript({
               // 额外保护：跳过我们自己的节点
               if (
                 el.closest(
-                  '.ot-translation, .ot-img-panel, .ot-toolbar, #ot-toolbar, #ot-status, .ot-selbtn',
+                  UI_SURFACE_SELECTOR,
                 )
               )
                 continue;
@@ -1798,7 +1805,7 @@ export default defineContentScript({
           : (range.startContainer as Element);
       if (
         !start ||
-        start.closest('#ot-selection-ui, #ot-error-modal, .ot-translation, #ot-toolbar, #ot-status')
+        start.closest(UI_SURFACE_SELECTOR,)
       ) {
         return null;
       }
@@ -2127,7 +2134,7 @@ export default defineContentScript({
         if (!target) return;
         if (
           target.closest(
-            '.ot-translation, #ot-toolbar, #ot-status, #ot-settings-panel, #ot-selection-ui, .ot-selbtn',
+            UI_SURFACE_SELECTOR,
           )
         )
           return;
@@ -2666,7 +2673,7 @@ export default defineContentScript({
         if (!target || !document.body.contains(target)) return;
         if (
           target.closest(
-            '#ot-hover-bubble, #ot-toolbar, .ot-translation, .ot-selbtn, #ot-error-modal, #ot-settings-panel, #ot-input-btn, #ot-input-result',
+            UI_SURFACE_SELECTOR,
           )
         )
           return;

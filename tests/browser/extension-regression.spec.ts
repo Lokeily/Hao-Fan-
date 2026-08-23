@@ -260,6 +260,50 @@ test('per-site auto-translate overrides global manual mode', async ({ page }) =>
   await expect(page.locator('.ot-translation').first()).toBeVisible({ timeout: 20000 });
 });
 
+test('critical: setup guide never hijacks the full settings panel', async ({ page }) => {
+  // 复现恶性 bug：手动模式 + 无 Key，打开完整设置面板准备输入 Key 时，
+  // 点击面板内任意位置都会重新弹出「还差一步就能开始翻译」引导，完全无法输入。
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'mock-storage:config',
+      JSON.stringify({
+        provider: 'deepseek',
+        apiKeys: {},
+        model: 'deepseek-chat',
+        sourceLang: '自动检测',
+        targetLang: '中文',
+        cacheEnabled: true,
+        streaming: true,
+        qualityCheck: true,
+        translateMode: 'manual',
+      }),
+    );
+    localStorage.setItem('mock-storage:v2ManualDefaultApplied', 'true');
+  });
+  await page.goto('/tests/browser/dom-regression.html');
+
+  // 打开快速面板 → 完整设置
+  await page.locator('#ot-settings-btn').click();
+  await page.locator('#ot-settings-panel').getByRole('button', { name: '打开完整设置' }).click();
+  const full = page.locator('#ot-full-settings');
+  await expect(full).toBeVisible();
+
+  // 首次弹出的引导卡应已被「打开设置」关闭；点击标题栏不得再触发引导
+  await full.locator('.head .title').click();
+  await expect(page.locator('#ot-error-modal')).toHaveCount(0);
+
+  // 核心：点击 API Key 输入框并输入——全程不得弹出引导、值必须保留
+  const keyInput = full.locator('[data-f=apiKey]');
+  await keyInput.click();
+  await keyInput.pressSequentially('sk-test-123');
+  await expect(keyInput).toHaveValue('sk-test-123');
+  await expect(page.locator('#ot-error-modal')).toHaveCount(0);
+
+  // 点击面板内其他区域同样安全
+  await full.locator('h2', { hasText: '引擎与密钥' }).click();
+  await expect(page.locator('#ot-error-modal')).toHaveCount(0);
+});
+
 test('menu pages load the configured brand logo asset', async ({ page }) => {
   await page.goto('/tests/browser/popup-regression.html');
   const logo = page.locator('.ot-brand-mark img');

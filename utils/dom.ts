@@ -80,16 +80,27 @@ export const TRANSLATED_CLASS = 'ot-translated';
 export const PENDING_CLASS = 'ot-pending';
 export const OBSERVED_CLASS = 'ot-observed';
 
+// 自有 UI 表面统一清单：点击 / 悬停 / 划词 / 扫描 / 文本收集等所有路径共用，
+// 确保扩展自身的浮层永远不会被当成网页内容处理（此前漏掉 #ot-full-settings
+// 导致手动模式下点击设置面板会反复弹出无 Key 引导弹窗的恶性 bug）。
 const OWN_SELECTOR = [
   '.ot-translation',
   '.ot-img-panel',
   '.ot-img-seg',
   '#ot-error-modal',
   '#ot-selection-ui',
+  '#ot-full-settings',
+  '#ot-settings-panel',
+  '#ot-hover-bubble',
+  '#ot-input-btn',
+  '#ot-input-result',
   '.ot-selbtn',
   '#ot-status',
   '#ot-toolbar',
 ].join(',');
+
+/** 与 OWN_SELECTOR 相同，供内容脚本等外部模块引用，避免各自维护不一致的名单 */
+export const UI_SURFACE_SELECTOR = OWN_SELECTOR;
 
 const PAGE_CHROME_SELECTOR = ['[role="banner"]', '[role="toolbar"]', '[role="search"]'].join(',');
 
