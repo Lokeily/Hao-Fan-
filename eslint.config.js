@@ -24,6 +24,11 @@ export default tseslint.config(
     files: ['scripts/**/*.mjs', 'tests/*.mjs', 'tests/browser/*.mjs', '*.config.*'],
     languageOptions: { globals: globals.node },
   },
+  {
+    // 官网冒烟脚本：page.evaluate 回调运行在浏览器上下文，需要浏览器全局。
+    files: ['scripts/docs-smoke.mjs'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
