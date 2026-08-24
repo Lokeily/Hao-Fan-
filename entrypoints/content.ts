@@ -45,7 +45,7 @@ import { buildConfigForm } from '../utils/ui.ts';
 import fullSettingsCss from '../styles/options.css?raw';
 import { LANGUAGES } from '../utils/languages.ts';
 import { PROVIDERS } from '../utils/providers.ts';
-import { createSpeakButton } from '../utils/speech.ts';
+import { createSpeakButton, stopSpeaking } from '../utils/speech.ts';
 import '../styles/content.css';
 
 let activeImageCleanup: (() => void) | null = null;
@@ -1789,6 +1789,7 @@ export default defineContentScript({
 
     function hideSelectionUi() {
       selectionRequestId++;
+      stopSpeaking();
       if (activeSelectionJobId) {
         sendRuntimeMessage({
           type: 'CANCEL_TRANSLATION',
@@ -1881,6 +1882,40 @@ export default defineContentScript({
       opts?: { localSkipped?: boolean },
     ) {
       const shadow = host.shadowRoot!;
+
+      // 原地更新：面板已在展示 loading 时只替换结果文本并追加操作行，
+      // 避免完成瞬间重播入场动画造成视觉闪烁。
+      const existingPanel = shadow.querySelector('.panel');
+      const existingResult = shadow.querySelector('.result');
+      if (existingPanel && existingResult && existingResult.classList.contains('loading') && translation !== undefined) {
+        existingResult.textContent = translation;
+        existingResult.classList.remove('loading');
+        if (opts?.localSkipped) {
+          const hint = document.createElement('div');
+          hint.className = 'skip-hint';
+          hint.textContent = '原文已是目标语言，未翻译';
+          existingPanel.appendChild(hint);
+        }
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'action';
+        copyBtn.textContent = '复制';
+        copyBtn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(translation);
+            copyBtn.textContent = '已复制';
+            setTimeout(() => { if (copyBtn.isConnected) copyBtn.textContent = '复制'; }, 1200);
+          } catch { copyBtn.textContent = '复制失败'; }
+        });
+        actions.appendChild(createSpeakButton(() => translation, () => currentTargetLang));
+        actions.appendChild(copyBtn);
+        existingPanel.appendChild(actions);
+        return;
+      }
+
+      // 首次创建：完整构建面板
       shadow.querySelectorAll(':not(style)').forEach((node) => node.remove());
       const panel = document.createElement('section');
       panel.className = 'panel';
@@ -2589,6 +2624,7 @@ export default defineContentScript({
     let hoverRequestId = 0;
 
     function hideHoverBubble() {
+      stopSpeaking();
       if (hoverPinned) return;
       if (hoverTimer) {
         clearTimeout(hoverTimer);
@@ -2770,6 +2806,7 @@ export default defineContentScript({
     }
 
     function hideInputTranslate() {
+      stopSpeaking();
       inputBtn?.remove();
       inputBtn = null;
       inputResultHost?.remove();
@@ -2855,6 +2892,7 @@ export default defineContentScript({
             try {
               await navigator.clipboard.writeText(res.translation);
               copy.textContent = '已复制';
+              setTimeout(() => { if (copy.isConnected) copy.textContent = '复制译文'; }, 1200);
             } catch {
               copy.textContent = '复制失败';
             }
@@ -2867,7 +2905,7 @@ export default defineContentScript({
             border: '0',
             borderRadius: '8px',
             background: 'rgba(120,120,128,0.16)',
-            color: '#1d1d1f',
+            color: resultDark ? '#f5f5f7' : '#1d1d1f',
             fontSize: '12px',
             fontWeight: '600',
             cursor: 'pointer',
