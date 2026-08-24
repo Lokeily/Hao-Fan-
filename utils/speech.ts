@@ -106,10 +106,17 @@ function pickVoice(
     if (named) return named;
   }
   if (!tag) return null;
-  const base = tag.split('-')[0];
-  const inLang = voices.filter((v) => v.lang.replace('_', '-').toLowerCase().startsWith(base));
+  const base = tag.split('-')[0].toLowerCase();
+  const norm = (s: string) => s.replace('_', '-').toLowerCase();
+  // ② 同语言组内先筛
+  const inLang = voices.filter((v) => norm(v.lang).startsWith(base));
   if (inLang.length === 0) return null;
-  // ② 自动择优：在线/Natural 优先
+  // ③ 优先精确地区匹配（zh-CN ≠ zh-HK），避免中文朗读变粤语
+  const exact = inLang.filter((v) => norm(v.lang) === tag.toLowerCase());
+  if (exact.length > 0) {
+    return exact.sort((a, b) => voiceScore(b) - voiceScore(a))[0] ?? null;
+  }
+  // ④ 无精确匹配时在同语言组内择优
   return inLang.sort((a, b) => voiceScore(b) - voiceScore(a))[0] ?? null;
 }
 

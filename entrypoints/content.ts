@@ -166,7 +166,7 @@ export default defineContentScript({
                 }
               }, 60);
             });
-            if (!siteDisabled && !document.querySelector('.ot-translation')) {
+            if (!siteDisabled && !document.querySelector('.ot-translation') && (currentTranslateMode === 'auto' || thisSiteAutoOverride)) {
               void translatePage(true);
             }
           }
@@ -243,7 +243,7 @@ export default defineContentScript({
           currentTranslateMode = v.translateMode;
           // 工具栏空闲态文案跟随模式变化；切入手动模式时给一次性操作提示。
           refreshToolbarIdleLabels();
-          if (prevMode !== 'manual' && currentTranslateMode === 'manual' && dynamicActive) stopDynamic();
+          if (prevMode !== 'manual' && currentTranslateMode === 'manual' && dynamicActive && !thisSiteAutoOverride) stopDynamic();
           if (prevMode !== 'manual' && currentTranslateMode === 'manual' && !thisSiteAutoOverride && !busy && !siteDisabled) {
             showStatus('已切换到手动模式：点击段落或划选文字即可翻译', true, 3500);
           }
@@ -1243,14 +1243,10 @@ export default defineContentScript({
         return;
       }
 
-      // 手动模式：不做整页自动翻译，仅由「点击段落 / 划词」触发。
-      // 自动初始化路径静默返回（避免每次导航都弹同样的提示）；
-      // 用户主动操作（工具栏 / 快捷键 / 弹窗）时给出一次性操作指引。
-      if (!effectiveAutoMode()) {
+      // 手动模式仅控制「页面加载时是否自动翻译」。
+      // 用户主动点击工具栏 / 快捷键 / 弹窗 = 明确要求翻译，不受模式限制。
+      if (!effectiveAutoMode() && !userInitiated) {
         busy = false;
-        if (userInitiated) {
-          showStatus('手动模式：点击段落或划选文字即可翻译（可在设置中切换）', true, 3500);
-        }
         return;
       }
 
@@ -2172,11 +2168,6 @@ export default defineContentScript({
             sendResponse({ ok: false, reason: 'paused' });
             return;
           }
-          if (!effectiveAutoMode()) {
-            showStatus('手动模式：点击段落或划选文字即可翻译（可在设置中切换）', true);
-            sendResponse({ ok: false, reason: 'manual' });
-            return;
-          }
           void translatePage(true, true);
           sendResponse({ ok: true });
         });
@@ -2293,7 +2284,7 @@ export default defineContentScript({
         .modal {
           display: flex; flex-direction: column;
           width: min(640px, calc(100vw - 48px));
-          height: min(74vh, 700px);
+          max-height: min(80vh, 720px);
           max-height: calc(100vh - 48px);
           border-radius: 20px;
           background: ${theme.surface};

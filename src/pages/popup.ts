@@ -1,4 +1,4 @@
-import { browser } from 'wxt/browser';
+﻿import { browser } from 'wxt/browser';
 import { buildConfigForm } from '../../utils/ui.ts';
 import { configItem, disabledSitesItem } from '../../utils/storage.ts';
 import { getProvider } from '../../utils/providers.ts';
@@ -464,12 +464,9 @@ if (typeof document !== 'undefined' && typeof location !== 'undefined') {
       })) as { ok?: boolean; reason?: string } | undefined;
       if (res && res.ok === false) {
         if (res.reason === 'manual') {
-          setOutput(
-            '当前网页是「手动点击」翻译模式：在网页中点击段落或划选文字即可翻译；要整页翻译，请在设置里把翻译模式切回「自动」。',
-            'neutral',
-          );
+          setOutput('当前网页是手动模式：在网页中点击段落或划选文字即可翻译。', 'neutral');
         } else {
-          setOutput('该网站的翻译已暂停：打开上方「当前网站翻译」开关后即可重试。', 'error');
+          setOutput('该网站的翻译已暂停：打开上方开关即可恢复。', 'error');
         }
         return;
       }

@@ -1,4 +1,4 @@
-import { defineBackground } from 'wxt/utils/define-background';
+﻿import { defineBackground } from 'wxt/utils/define-background';
 import { browser } from 'wxt/browser';
 import { configItem, disabledSitesItem, usageItem } from '../utils/storage.ts';
 import { putImageJob } from '../utils/image-job-store.ts';
@@ -205,12 +205,15 @@ function setupStreamingPort() {
       // 端口与 HTTP 消息面执行同一套长度/空文本校验（MAX_TEXT_CHARS）：
       // 超长文本走这里会绕过上限造成成本失控口子。
       const trimmedText = text.trim();
+      const safePostEarly = (payload: Record<string, unknown>) => {
+        try { port.postMessage(payload); } catch { /* 端口已断开 */ }
+      };
       if (!trimmedText) {
-        port.postMessage({ id, done: true, error: '翻译文本不能为空' });
+        safePostEarly({ id, done: true, error: '翻译文本不能为空' });
         return;
       }
       if (trimmedText.length > MAX_TEXT_CHARS) {
-        port.postMessage({
+        safePostEarly({
           id,
           done: true,
           error: `翻译文本过长：${trimmedText.length} / ${MAX_TEXT_CHARS} 字符`,

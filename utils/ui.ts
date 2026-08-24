@@ -1,6 +1,7 @@
 ﻿import { configItem } from './storage.ts';
 import { getCacheStats, clearTranslateCache } from './cache.ts';
 import { langTagOf, listVoicesForLang, onVoicesReady } from './speech.ts';
+import { sanitizeImportedConfig } from './settings-backup.ts';
 import { PROVIDERS } from './providers.ts';
 import { LANGUAGES } from './languages.ts';
 import { browser } from 'wxt/browser';
@@ -66,6 +67,10 @@ export function buildConfigForm(
         <div class="ot-form-actions">
           <button type="button" data-f="test" class="ot-test-btn">测试连接</button>
           <div class="ot-status" role="status" aria-live="polite"></div>
+        </div>
+        <div class="ot-field-grid ot-migrate-row">
+          <button type="button" data-f="cfgCopy" class="ot-migrate-btn">📋 复制配置（含 Key）</button>
+          <button type="button" data-f="cfgPaste" class="ot-migrate-btn">📥 从剪贴板恢复</button>
         </div>
       </section>
 
@@ -226,6 +231,8 @@ export function buildConfigForm(
   const status = mount.querySelector('.ot-status') as HTMLElement;
   const cacheCountEl = mount.querySelector('[data-f=cacheCount]') as HTMLElement;
   const cacheClearBtn = mount.querySelector('[data-f=cacheClear]') as HTMLButtonElement;
+  const cfgCopyBtn = mount.querySelector('[data-f=cfgCopy]') as HTMLButtonElement;
+  const cfgPasteBtn = mount.querySelector('[data-f=cfgPaste]') as HTMLButtonElement;
   const customModelValue = '__haofan_custom_model__';
   let statusTimer: ReturnType<typeof setTimeout> | null = null;
   let saveQueue: Promise<void> = Promise.resolve();
@@ -737,6 +744,41 @@ export function buildConfigForm(
     }
   });
 
+  // ===== 剪贴板一键备份/恢复（所有面板通用，含 API Key）=====
+  cfgCopyBtn?.addEventListener('click', async () => {
+    if (configLoadFailed) { setStatus('读取设置失败，无法导出', true); return; }
+    cfgCopyBtn.disabled = true;
+    try {
+      const snapshot = normalizeConfig(await configItem.getValue());
+      const payload = JSON.stringify({ app: 'hao-fan', kind: 'settings', version: 1, config: snapshot });
+      await navigator.clipboard.writeText(payload);
+      setStatus('已复制全部配置（含 Key）到剪贴板 ✓', false, 3000);
+    } catch (e) {
+      setStatus('复制失败：' + (e instanceof Error ? e.message : String(e)), true);
+    } finally {
+      cfgCopyBtn.disabled = false;
+    }
+  });
+  cfgPasteBtn?.addEventListener('click', async () => {
+    if (cfgPasteBtn.disabled) return;
+    cfgPasteBtn.disabled = true;
+    try {
+      const text = await navigator.clipboard.readText();
+      let parsed: any;
+      try { parsed = JSON.parse(text); } catch { throw new Error('剪贴板内容不是有效的 JSON'); }
+      if (parsed?.app !== 'hao-fan' || parsed?.kind !== 'settings') throw new Error('不是好翻的配置数据');
+      const sanitized = sanitizeImportedConfig(parsed.config);
+      await configItem.setValue(sanitized);
+      dirtyFields.clear();
+      cfg = sanitized;
+      fill();
+      setStatus(`已从剪贴板恢复配置：引擎 ${sanitized.provider} ✓`, false, 4000);
+    } catch (e) {
+      setStatus('恢复失败：' + (e instanceof Error ? e.message : String(e)), true);
+    } finally {
+      cfgPasteBtn.disabled = false;
+    }
+  });
   // 测试连接：保存当前配置后翻译一句测试文本，验证 Key / 端点是否可用（P2-3）
   testBtn.addEventListener('click', async () => {
     const saved = await save(); // 先等配置落盘，再发测试请求，避免用旧配置误测
