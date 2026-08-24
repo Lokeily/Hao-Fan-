@@ -232,11 +232,17 @@ export default defineContentScript({
         hoverTranslateEnabled = v.hoverTranslate !== false;
         inputTranslateEnabled = v.inputTranslate !== false;
         streamingEnabled = v.streaming !== false;
-        // 刚在页内设置面板里填好 Key：直接接着把这页翻完，不用再点一次按钮。
+        // 刚在页内设置面板里填好 Key：给出明确的下一步指引，不用再点一次按钮。
         if (awaitingSetup && !providerNeedsSetup(normalizeConfig(v))) {
           awaitingSetup = false;
           closeNotice();
-          if (!siteDisabled && !document.querySelector('.ot-translation')) void translatePage(true);
+          if (!siteDisabled && !document.querySelector('.ot-translation')) {
+            if (currentTranslateMode === 'manual') {
+              showStatus('配置完成 ✓ 点击段落或划选文字即可翻译', true, 4000);
+            } else {
+              void translatePage(true);
+            }
+          }
         }
         if (v.translateMode === 'auto' || v.translateMode === 'manual') {
           const prevMode = currentTranslateMode;
@@ -560,7 +566,7 @@ export default defineContentScript({
         lastGuideRenderAt = Date.now();
         noticeHost = createNoticeHost(
           '还差一步就能开始翻译',
-          '好翻直接调用你自己的大模型账号，不经过任何中转服务器。填入 API Key 后即可翻译本页；Key 只保存在本机浏览器里。',
+          '好翻直接调用你自己的大模型账号，Key 只保存在本机浏览器。填入 API Key 后，点击段落或划选文字即可翻译。',
           closeNotice,
           { label: '打开设置', onAction: open },
         );
